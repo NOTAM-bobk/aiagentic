@@ -60,22 +60,23 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
   const cloud = active?.mode === "cloud";
   const status = cloud ? (active?.previewUrl ? "live" : "cloud") : "browser";
+  const busyPhase = workspace.busy ? workspace.phase || "working" : null;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-paper font-mono text-ink">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-3 sm:gap-3 sm:px-4">
+      <header className="flex h-13 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-3 sm:gap-3 sm:px-4">
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
           aria-label="Open projects"
-          className="border border-line p-1 text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:hidden"
+          className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:hidden"
         >
-          <Menu className="h-3.5 w-3.5" />
+          <Menu className="h-4 w-4" />
         </button>
 
         <div className="flex items-center gap-1.5">
-          <KilnMark className="h-3.5 w-3.5 text-ember" />
-          <span className="text-[12px] tracking-tight text-ink">kiln</span>
+          <KilnMark className="h-4 w-4 text-ember" />
+          <span className="text-[13px] tracking-tight text-ink">kiln</span>
         </div>
 
         <label htmlFor="project-title" className="sr-only">
@@ -86,17 +87,23 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           value={active?.title ?? "untitled"}
           onChange={(event) => active && workspace.renameProject(active.id, event.target.value)}
           spellCheck={false}
-          className="min-w-0 max-w-[30vw] flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-[11.5px] text-ink transition-colors hover:border-line focus:border-line-strong focus:outline-none sm:max-w-[240px]"
+          className="min-w-0 max-w-[30vw] flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-[13px] text-ink transition-colors hover:border-line focus:border-line-strong focus:outline-none sm:max-w-[240px]"
         />
 
         <span
           className={cn(
-            "hidden items-center gap-1.5 border px-1.5 py-0.5 text-[9.5px] tracking-wide md:inline-flex",
-            cloud ? "border-ember/35 text-ember" : "border-line text-ink-faint",
+            "hidden items-center gap-1.5 border px-2 py-1 text-[10.5px] tracking-wide md:inline-flex",
+            busyPhase || cloud ? "border-ember/35 text-ember" : "border-line text-ink-faint",
           )}
         >
-          {cloud ? <Cloud className="h-2.5 w-2.5" /> : <Frame className="h-2.5 w-2.5" />}
-          {status}
+          {busyPhase ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : cloud ? (
+            <Cloud className="h-3 w-3" />
+          ) : (
+            <Frame className="h-3 w-3" />
+          )}
+          {busyPhase ?? status}
         </span>
 
         <div className="ml-auto flex items-center gap-2">
@@ -106,18 +113,18 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             onClick={openIntegrations}
             aria-label="Connectors"
             title="Connectors"
-            className="hidden border border-line p-1.5 text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:inline-block"
+            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
           >
-            <Plug className="h-3.5 w-3.5" />
+            <Plug className="h-4 w-4" />
           </button>
           <button
             type="button"
             onClick={openSetup}
             aria-label="Setup"
             title="Setup"
-            className="border border-line p-1.5 text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+            className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <Settings2 className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -125,16 +132,16 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               workspace.newProject();
               setMobileView("chat");
             }}
-            className="inline-flex items-center gap-1.5 border border-ember/40 bg-ember/10 px-2 py-1.5 text-[11px] text-ember transition-colors hover:border-ember hover:bg-ember/15"
+            className="inline-flex min-h-9 items-center gap-1.5 border border-ember/40 bg-ember/10 px-3 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">new</span>
           </button>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-[228px] shrink-0 flex-col border-r border-line bg-night/50 lg:flex">
+        <aside className="hidden w-[248px] shrink-0 flex-col border-r border-line bg-night/50 lg:flex">
           <ProjectList
             projects={projects}
             activeId={active?.id ?? null}
@@ -188,12 +195,12 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         </div>
       </div>
 
-      <nav className="flex shrink-0 border-t border-line bg-paper-2/40 font-mono text-[10.5px] lg:hidden" aria-label="Workspace views">
+      <nav className="flex shrink-0 border-t border-line bg-paper-2/40 font-mono text-[11.5px] lg:hidden" aria-label="Workspace views">
         <button
           type="button"
           onClick={() => setMobileView("chat")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 py-2 transition-colors",
+            "flex flex-1 items-center justify-center gap-2 py-3 transition-colors",
             mobileView === "chat" ? "text-ember" : "text-ink-faint",
           )}
         >
@@ -203,7 +210,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           type="button"
           onClick={() => setMobileView("site")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 border-l border-line py-2 transition-colors",
+            "flex flex-1 items-center justify-center gap-2 border-l border-line py-3 transition-colors",
             mobileView === "site" ? "text-ember" : "text-ink-faint",
           )}
         >
@@ -229,9 +236,9 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                 type="button"
                 onClick={() => setSidebarOpen(false)}
                 aria-label="Close"
-                className="border border-line p-1 text-ink-faint"
+                className="grid h-9 w-9 place-items-center border border-line text-ink-faint"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
             <ProjectList
@@ -275,8 +282,8 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
       {workspace.toast && (
         <div className="fixed bottom-16 left-1/2 z-50 w-[min(92vw,460px)] -translate-x-1/2 border border-line border-l-2 border-l-alert bg-paper-2 px-3 py-2.5 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.8)] lg:bottom-6">
           <div className="flex items-start gap-2.5">
-            <span className="mt-1 text-[10px] text-alert">!</span>
-            <p className="flex-1 font-mono text-[11px] leading-relaxed text-ink-soft">
+            <span className="mt-0.5 text-[12px] text-alert">!</span>
+            <p className="flex-1 font-mono text-[12.5px] leading-relaxed text-ink-soft">
               {workspace.toast}
             </p>
             <button
@@ -310,9 +317,9 @@ function ProjectList({
   return (
     <>
       <div className="flex-1 overflow-y-auto py-3">
-        <p className="px-4 pb-3 text-[10px] uppercase tracking-[0.14em] text-ink-faint">sites</p>
+        <p className="px-4 pb-3 text-[10.5px] uppercase tracking-[0.14em] text-ink-faint">sites</p>
         {projects.length === 0 ? (
-          <p className="px-4 text-[11px] text-ink-faint">nothing yet</p>
+          <p className="px-4 text-[12.5px] text-ink-faint">nothing yet</p>
         ) : (
           <ul>
             {projects.map((project) => {
@@ -323,7 +330,7 @@ function ProjectList({
                     type="button"
                     onClick={() => onSelect(project.id)}
                     className={cn(
-                      "flex w-full items-center gap-2.5 border-l-2 py-2.5 pl-3 pr-8 text-left transition-colors",
+                      "flex w-full items-center gap-2.5 border-l-2 py-3 pl-3 pr-9 text-left transition-colors",
                       current
                         ? "border-l-ember bg-paper-2/80"
                         : "border-l-transparent hover:border-l-line-strong hover:bg-paper-2/40",
@@ -339,7 +346,7 @@ function ProjectList({
                     </span>
                     <span
                       className={cn(
-                        "min-w-0 flex-1 truncate text-[12px]",
+                        "min-w-0 flex-1 truncate text-[13px]",
                         current ? "text-ink" : "text-ink-soft",
                       )}
                     >
@@ -369,9 +376,9 @@ function ProjectList({
         <button
           type="button"
           onClick={onNew}
-          className="flex w-full items-center gap-1.5 border border-dashed border-line px-2 py-2 text-[11px] text-ink-soft transition-colors hover:border-ember/50 hover:text-ember"
+          className="flex min-h-9 w-full items-center justify-center gap-1.5 border border-dashed border-line px-2 text-[12px] text-ink-soft transition-colors hover:border-ember/50 hover:text-ember"
         >
-          <Plus className="h-3 w-3" /> new_site
+          <Plus className="h-3.5 w-3.5" /> new site
         </button>
       </div>
     </>

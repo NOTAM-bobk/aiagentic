@@ -54,19 +54,19 @@ function Sheet({
       <div className="relative flex h-full w-full max-w-md flex-col border-l border-line bg-paper shadow-2xl animate-fade-up">
         <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
           <div className="font-mono">
-            <h2 className="text-[12.5px] tracking-tight text-ink">{title.toLowerCase()}</h2>
-            {subtitle && <p className="mt-1 text-[10.5px] leading-relaxed text-ink-faint">{subtitle}</p>}
+            <h2 className="text-[14px] tracking-tight text-ink">{title.toLowerCase()}</h2>
+            {subtitle && <p className="mt-1.5 text-[12px] leading-relaxed text-ink-faint">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close panel"
-            className="border border-line p-1 text-ink-faint transition-colors hover:text-ink"
+            className="border border-line p-1.5 text-ink-faint transition-colors hover:text-ink"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">{children}</div>
       </div>
     </div>
   );
@@ -181,17 +181,17 @@ export function IntegrationsSheet({
       {!composioReady ? (
         <div className="border border-line bg-paper-2/40 p-3 font-mono">
           <KeyRound className="h-3.5 w-3.5 text-ember" />
-          <p className="mt-2 text-[11.5px] text-ink">composio isn&apos;t configured</p>
-          <p className="mt-1 text-[10.5px] leading-relaxed text-ink-soft">
-            add <code className="text-[10.5px] text-ink">COMPOSIO_API_KEY</code> to link github,
+          <p className="mt-2 text-[13px] text-ink">composio isn&apos;t configured</p>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-ink-soft">
+            add <code className="text-[12px] text-ink">COMPOSIO_API_KEY</code> to link github,
             supabase, cloudflare, vercel and more.
           </p>
           <button
             type="button"
             onClick={onOpenSetup}
-            className="mt-3 inline-flex items-center gap-1.5 border border-ember/40 px-2 py-1 text-[10.5px] text-ember transition-colors hover:border-ember hover:bg-ember-soft"
+            className="mt-3 inline-flex min-h-9 items-center gap-1.5 border border-ember/40 bg-ember/10 px-3 text-[12px] text-ember transition-colors hover:border-ember"
           >
-            open setup <ArrowUpRight className="h-2.5 w-2.5" />
+            open setup <ArrowUpRight className="h-3 w-3" />
           </button>
         </div>
       ) : (
@@ -227,11 +227,11 @@ export function IntegrationsSheet({
                     {toolkit.name.slice(0, 2)}
                   </span>
                   <div className="min-w-0 flex-1 font-mono">
-                    <p className="flex items-center gap-1.5 text-[11.5px] text-ink">
+                    <p className="flex items-center gap-1.5 text-[12.5px] text-ink">
                       {toolkit.name}
-                      {toolkit.connected && <Check className="h-3 w-3 text-ember" />}
+                      {toolkit.connected && <Check className="h-3.5 w-3.5 text-ember" />}
                     </p>
-                    <p className="truncate text-[10.5px] text-ink-faint">
+                    <p className="truncate text-[11.5px] text-ink-faint">
                       {toolkit.connected ? "Connected" : toolkit.blurb ?? toolkit.slug}
                     </p>
                   </div>
@@ -240,7 +240,7 @@ export function IntegrationsSheet({
                     onClick={() => connect(toolkit.slug)}
                     disabled={connecting === toolkit.slug}
                     className={cn(
-                      "inline-flex shrink-0 items-center gap-1 border px-2 py-1 font-mono text-[10.5px] transition-colors",
+                      "inline-flex min-h-8 shrink-0 items-center gap-1.5 border px-3 font-mono text-[11.5px] transition-colors",
                       toolkit.connected
                         ? "border-line text-ink-soft hover:border-line-strong hover:text-ink"
                         : "border-ember/40 bg-ember/10 text-ember hover:border-ember",
@@ -262,7 +262,7 @@ export function IntegrationsSheet({
             <button
               type="button"
               onClick={() => setShowAdvanced((value) => !value)}
-              className="flex w-full items-center justify-between font-mono text-[11px] text-ink-soft hover:text-ink"
+              className="flex min-h-9 w-full items-center justify-between font-mono text-[12.5px] text-ink-soft hover:text-ink"
             >
               run a connector action
               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAdvanced && "rotate-180")} />
@@ -278,7 +278,7 @@ export function IntegrationsSheet({
                     id="action"
                     value={action}
                     onChange={(event) => setAction(event.target.value)}
-                    className="mt-1 w-full border border-line bg-paper px-2.5 py-1.5 font-mono text-[11px] text-ink focus:border-ember/50 focus:outline-none"
+                    className="mt-1.5 w-full border border-line bg-paper px-3 py-2 font-mono text-[12px] text-ink focus:border-ember/50 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -290,14 +290,14 @@ export function IntegrationsSheet({
                     value={args}
                     onChange={(event) => setArgs(event.target.value)}
                     rows={4}
-                    className="mt-1 w-full resize-y border border-line bg-paper px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-ink focus:border-ember/50 focus:outline-none"
+                    className="mt-1.5 w-full resize-y border border-line bg-paper px-3 py-2 font-mono text-[12px] leading-relaxed text-ink focus:border-ember/50 focus:outline-none"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={execute}
                   disabled={running}
-                  className="inline-flex items-center gap-1.5 border border-ember/40 px-2.5 py-1 font-mono text-[10.5px] text-ember transition-colors hover:border-ember hover:bg-ember-soft disabled:opacity-60"
+                  className="inline-flex min-h-9 items-center gap-2 border border-ember/40 bg-ember/10 px-3.5 font-mono text-[12px] text-ember transition-colors hover:border-ember disabled:opacity-60"
                 >
                   {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plug className="h-3 w-3" />}
                   execute
@@ -376,7 +376,7 @@ export function SetupSheet({
       subtitle="server-side keys"
     >
       <div className="border border-line bg-paper-2/40 px-3 py-3 font-mono">
-        <p className="text-[11px] leading-relaxed text-ink-soft">
+        <p className="text-[12.5px] leading-relaxed text-ink-soft">
           {missing === 0 ? "all set" : `${missing} key${missing === 1 ? "" : "s"} missing`}
         </p>
         <button
@@ -386,7 +386,7 @@ export function SetupSheet({
             onRecheck();
             window.setTimeout(() => setChecking(false), 900);
           }}
-          className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-ember hover:underline"
+          className="mt-2 inline-flex min-h-8 items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ember hover:underline"
         >
           <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} /> recheck
         </button>
@@ -399,24 +399,24 @@ export function SetupSheet({
             <li key={item.key} className="px-1 py-2.5 font-mono">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-[11.5px] text-ink">
+                  <p className="flex items-center gap-2 text-[12.5px] text-ink">
                     <span
                       className={cn("h-1 w-1 rounded-full", ready ? "bg-ember" : "bg-line-strong")}
                     />
                     <span className={ready ? "text-ink" : "text-ink-soft"}>{item.key}</span>
                   </p>
-                  <p className="mt-0.5 text-[10px] text-ink-faint">{item.label.toLowerCase()}</p>
+                  <p className="mt-1 text-[11px] text-ink-faint">{item.label.toLowerCase()}</p>
                 </div>
                 <a
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1 text-[10px] text-ink-faint hover:text-ember"
+                  className="inline-flex min-h-8 shrink-0 items-center gap-1 text-[11px] text-ink-faint hover:text-ember"
                 >
                   get key <ArrowUpRight className="h-2.5 w-2.5" />
                 </a>
               </div>
-              <p className="mt-1 text-[10.5px] leading-relaxed text-ink-faint">{item.purpose}</p>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-ink-faint">{item.purpose}</p>
             </li>
           );
         })}
@@ -424,7 +424,7 @@ export function SetupSheet({
 
       <div className="mt-6">
         <p className="label-xs text-ink-faint">overrides</p>
-        <dl className="mt-2 space-y-1.5 font-mono text-[10.5px] text-ink-soft">
+        <dl className="mt-2 space-y-2 font-mono text-[11.5px] text-ink-soft">
           {[
             ["GROQ_PLANNER_MODEL", "gpt-oss-120b"],
             ["GOOGLE_BUILDER_MODEL", "gemini-3.8-flash"],

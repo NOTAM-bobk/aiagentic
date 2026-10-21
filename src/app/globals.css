@@ -6,9 +6,9 @@
   --paper: #0a0b0c;
   --paper-2: #121416;
   --paper-3: #171a1d;
-  --ink: #e6e8ea;
-  --ink-soft: #9aa1a8;
-  --ink-faint: #6b7278;
+  --ink: #eef1f3;
+  --ink-soft: #bcc4cb;
+  --ink-faint: #8b949b;
   --line: #1d2124;
   --line-strong: #2d3338;
   --ember: #7ee0a6;
@@ -98,7 +98,7 @@ body {
 
 @utility label-xs {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -166,23 +166,36 @@ body {
 }
 
 .markdown {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.75;
   color: var(--ink-soft);
 }
 
 .markdown p + p {
-  margin-top: 0.7em;
+  margin-top: 0.8em;
 }
 
 .markdown h1,
 .markdown h2,
 .markdown h3 {
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 550;
   letter-spacing: -0.01em;
-  margin-top: 1.1em;
-  margin-bottom: 0.35em;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  line-height: 1.35;
+}
+
+.markdown h1 {
+  font-size: 1.35rem;
+}
+
+.markdown h2 {
+  font-size: 1.15rem;
+}
+
+.markdown h3 {
+  font-size: 1rem;
 }
 
 .markdown ul,
@@ -196,7 +209,19 @@ body {
 }
 
 .markdown li {
-  margin: 0.2em 0;
+  margin: 0.3em 0;
+}
+
+.markdown blockquote {
+  border-left: 2px solid var(--line-strong);
+  padding-left: 0.9em;
+  color: var(--ink-faint);
+}
+
+.markdown hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.2em 0;
 }
 
 .markdown code {

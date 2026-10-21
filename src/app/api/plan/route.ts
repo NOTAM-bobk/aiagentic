@@ -15,7 +15,7 @@ type Body = {
 };
 
 type Decision =
-  | { action: "chat"; reply: string }
+  | { action: "chat"; reply: string; options?: string[] }
   | { action: "build"; plan: Plan }
   | { action: "auto" };
 
@@ -37,7 +37,14 @@ function readDecision(text: string): Decision {
   if (!data) return { action: "auto" };
 
   if (data.action === "chat" && typeof data.reply === "string" && data.reply.trim()) {
-    return { action: "chat", reply: data.reply.trim() };
+    const options = Array.isArray(data.options)
+      ? data.options
+          .filter((option): option is string => typeof option === "string")
+          .map((option) => option.trim().slice(0, 120))
+          .filter(Boolean)
+          .slice(0, 4)
+      : undefined;
+    return { action: "chat", reply: data.reply.trim(), ...(options && options.length > 1 ? { options } : {}) };
   }
 
   const plan = data.plan as Plan | null | undefined;

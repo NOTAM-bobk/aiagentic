@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BUILDER_PROMPT, buildEditContext } from "@/lib/prompts";
+import { BUILDER_PROMPT, TITLE_PROMPT, buildEditContext } from "@/lib/prompts";
 import {
   parseArtifacts,
   streamPreview,
@@ -68,6 +68,22 @@ function withoutRaw(projects: Project[]): Project[] {
       })),
     })),
   }));
+}
+
+function cleanTitle(value: string): string | null {
+  const line = value
+    .replace(/[`*#]/g, "")
+    .split("\n")
+    .map((part) => part.trim())
+    .find(Boolean);
+  if (!line) return null;
+  const title = line
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .replace(/[.!?:;]+$/, "")
+    .trim()
+    .slice(0, 64);
+  if (!title || title.split(/\s+/).length > 8) return null;
+  return title;
 }
 
 async function errorFromResponse(response: Response): Promise<string> {
@@ -279,11 +295,15 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         const response = await fetch("/api/sandbox", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "preview", sandboxId: project.sandboxId }),
+          body: JSON.stringify({
+            action: "preview",
+            sandboxId: project.sandboxId,
+            runCommand: project.runCommand ?? undefined,
+          }),
         });
         if (!response.ok) throw new Error(await errorFromResponse(response));
-        const data = (await response.json()) as { previewUrl: string };
-        patchProject(project.id, { previewUrl: data.previewUrl });
+        const data = (await response.json()) as { previewUrl: string; runtime?: string };
+        patchProject(project.id, { previewUrl: data.previewUrl, runtime: data.runtime ?? project.runtime ?? null });
         return data.previewUrl;
       } catch (error) {
         setToast(error instanceof Error ? error.message : "Could not start the preview.");
@@ -311,6 +331,48 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   }, [patchProject]);
 
   /* --------------------------------------------------------------- the loop */
+
+  /** Names the conversation with the model, once, on the first turn. */
+  const nameChat = useCallback(
+    async (projectId: string, prompt: string, reply: string, allowed: boolean, builder: string) => {
+      if (!allowed) return;
+      try {
+        let title: string | null = null;
+        const response = await fetch("/api/title", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ request: prompt, reply: reply.slice(0, 800) }),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { title?: string | null };
+          title = data.title?.trim() || null;
+        }
+
+        // No server-side model: ask Puter in the browser, which is already signed in.
+        if (!title && builder === "puter") {
+          await loadPuter();
+          const raw = await puterChat({
+            messages: [
+              { role: "system", content: TITLE_PROMPT },
+              { role: "user", content: `Message: ${truncate(prompt, 800)}` },
+            ],
+            onDelta: () => undefined,
+          });
+          title = cleanTitle(raw);
+        }
+
+        if (!title) return;
+        const current = projectsRef.current.find((project) => project.id === projectId);
+        if (!current) return;
+        // Never overwrite a name the user typed, or a plan's chosen title.
+        if (current.title !== "Untitled site" && current.title !== slugTitle(prompt)) return;
+        patchProject(projectId, { title });
+      } catch {
+        // Naming is a nicety; the slug fallback already covers it.
+      }
+    },
+    [patchProject],
+  );
 
   const runAgent = useCallback(
     async (project: Project, prompt: string) => {
@@ -373,6 +435,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       let sandboxId = project.sandboxId ?? null;
       let mode: WorkspaceMode = project.mode;
       let previewUrl = project.previewUrl ?? null;
+      let runCommand = project.runCommand ?? null;
       const builder = project.builder;
       const puterModel = project.puterModel ?? PUTER_MODELS[0].id;
       let title = project.title;
@@ -417,11 +480,130 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         }
       };
 
+      /** Installs dependencies and bundles the app when the project asks for it. */
+      const prepareRuntime = async (): Promise<boolean> => {
+        if (mode !== "cloud" || !sandboxId) return true;
+        const pkg = files.find((file) => file.path === "package.json");
+        if (!pkg) return true;
+
+        let scripts: string[] = [];
+        try {
+          scripts = Object.keys(
+            (JSON.parse(pkg.content) as { scripts?: Record<string, string> }).scripts ?? {},
+          );
+        } catch {
+          // A malformed package.json will be reported by the install step itself.
+        }
+
+        setPhase("Installing dependencies");
+        const installTool = pushTool({
+          kind: "shell",
+          label: "Installing dependencies",
+          detail: "npm install",
+        });
+        try {
+          const response = await fetch("/api/sandbox", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "install", sandboxId }),
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error(await errorFromResponse(response));
+          const data = (await response.json()) as {
+            installed: boolean;
+            command: string | null;
+            scripts: string[];
+            output: string;
+          };
+          if (data.scripts?.length) scripts = data.scripts;
+          resolveTool(installTool, {
+            status: "ok",
+            label: data.installed ? "Dependencies installed" : "Dependencies ready",
+            detail: data.command ?? undefined,
+            output: data.output || undefined,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Install failed";
+          resolveTool(installTool, { status: "error", output: message });
+          observations.push(`Dependency install failed. Fix the package.json or the cause below.\n${message}`);
+          return false;
+        }
+
+        if (!scripts.includes("build")) return true;
+
+        setPhase("Bundling the app");
+        const buildTool = pushTool({ kind: "shell", label: "Bundling the app", detail: "npm run build" });
+        try {
+          const response = await fetch("/api/sandbox", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "build", sandboxId }),
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error(await errorFromResponse(response));
+          const data = (await response.json()) as {
+            built: boolean;
+            command: string | null;
+            output: string;
+            root: string | null;
+          };
+          resolveTool(buildTool, {
+            status: "ok",
+            label: data.built ? "Bundle built" : "Nothing to build",
+            detail: data.command ?? undefined,
+            output: data.output ? truncate(data.output, 2500) : undefined,
+          });
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Build failed";
+          resolveTool(buildTool, { status: "error", output: message });
+          observations.push(`The build failed. Fix the cause below before the preview can run.\n${message}`);
+          return false;
+        }
+      };
+
+      const startPreviewNow = async (): Promise<string | null> => {
+        if (mode !== "cloud" || !sandboxId) return null;
+        setPhase("Starting the preview");
+        const toolId = pushTool({
+          kind: "run",
+          label: runCommand ? `Starting ${runCommand}` : "Starting the preview",
+          detail: runCommand ?? undefined,
+        });
+        try {
+          const response = await fetch("/api/sandbox", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "preview", sandboxId, runCommand: runCommand ?? undefined }),
+            signal: controller.signal,
+          });
+          if (!response.ok) throw new Error(await errorFromResponse(response));
+          const data = (await response.json()) as { previewUrl: string; runtime?: string; output?: string };
+          previewUrl = data.previewUrl;
+          patchProject(projectId, { previewUrl: data.previewUrl, runtime: data.runtime ?? null });
+          resolveTool(toolId, {
+            status: "ok",
+            label: data.runtime ? `Preview live · ${data.runtime}` : "Preview live",
+            output: data.output || undefined,
+          });
+          return data.previewUrl;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Preview failed";
+          resolveTool(toolId, { status: "error", output: message });
+          if (!controller.signal.aborted) {
+            observations.push(`The preview could not start. ${message}`);
+            setToast(message);
+          }
+          return null;
+        }
+      };
+
       try {
         /* 1 — decide: talk, or build? -------------------------------- */
         setPhase("Thinking");
         let plan: Plan | null = null;
         let reply: string | null = null;
+        let replyOptions: string[] = [];
         try {
           const response = await fetch("/api/plan", {
             method: "POST",
@@ -434,10 +616,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             action?: "build" | "chat" | "auto";
             plan?: Plan | null;
             reply?: string;
+            options?: string[];
           };
 
           if (data.action === "chat" && data.reply?.trim()) {
             reply = data.reply.trim();
+            replyOptions = Array.isArray(data.options) ? data.options.filter(Boolean).slice(0, 4) : [];
           } else if (data.action === "build" && data.plan) {
             plan = data.plan;
             patchMessage(projectId, assistant.id, { plan });
@@ -452,8 +636,14 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         }
 
         if (reply) {
-          patchMessage(projectId, assistant.id, { content: reply, pending: false, raw: undefined });
+          patchMessage(projectId, assistant.id, {
+            content: reply,
+            pending: false,
+            raw: undefined,
+            question: replyOptions.length ? { text: reply, options: replyOptions } : null,
+          });
           patchProject(projectId, { title });
+          void nameChat(projectId, prompt, reply, project.messages.length <= 1, builder);
           return;
         }
 
@@ -551,7 +741,41 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           const fileArtifacts = artifacts.filter((artifact) => artifact.kind === "file");
           const doneArtifact = artifacts.find((artifact) => artifact.kind === "done");
 
-          // A reply in words is a valid turn: an answer, or a question back.
+          const thoughts = artifacts
+            .filter((artifact) => artifact.kind === "think")
+            .map((artifact) => (artifact.kind === "think" ? artifact.text : ""))
+            .filter(Boolean);
+          if (thoughts.length > 0) {
+            patchMessage(projectId, assistant.id, { thinking: thoughts.join("\n\n").slice(0, 6000) });
+          }
+
+          for (const artifact of artifacts) {
+            if (artifact.kind === "title" && !plan) {
+              title = artifact.title;
+              patchProject(projectId, { title });
+            }
+            if (artifact.kind === "run") {
+              runCommand = artifact.command;
+            }
+          }
+
+          const askArtifact = artifacts.find((artifact) => artifact.kind === "ask");
+
+          // A question back is a valid turn: no files, one clear ask.
+          if (askArtifact && askArtifact.kind === "ask" && fileArtifacts.length === 0) {
+            const said = streamPreview(raw);
+            resolveTool(writeTool, { status: "ok", label: "Asked a question" });
+            summaryText = said || askArtifact.question;
+            patchMessage(projectId, assistant.id, {
+              content: said === askArtifact.question ? "" : said,
+              question: { text: askArtifact.question, options: askArtifact.options },
+              pending: false,
+              raw: undefined,
+            });
+            break;
+          }
+
+          // A reply in words is a valid turn: an answer, or feedback.
           if (fileArtifacts.length === 0) {
             const said = streamPreview(raw) || (doneArtifact?.kind === "done" ? doneArtifact.summary : "");
             if (!said) {
@@ -646,7 +870,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                   const response = await fetch("/api/sandbox", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ action: "exec", sandboxId, command: artifact.command }),
+                    body: JSON.stringify({ action: "exec", sandboxId, command: artifact.command, timeout: 45 }),
                     signal: controller.signal,
                   });
                   if (!response.ok) throw new Error(await errorFromResponse(response));
@@ -708,9 +932,17 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             (artifact) => artifact.kind === "search" || artifact.kind === "shell" || artifact.kind === "connect",
           );
 
+          const runtimeReady = await prepareRuntime();
+          if (!runtimeReady) {
+            patchMessage(projectId, assistant.id, {
+              content: "The project did not install or bundle cleanly. Sending the error back to the agent…",
+            });
+            if (round < MAX_ROUNDS) continue;
+            break;
+          }
+
           if (mode === "cloud" && sandboxId) {
-            const url = await refreshPreview({ ...project, sandboxId, mode });
-            previewUrl = url ?? previewUrl;
+            await startPreviewNow();
           }
 
           if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -734,7 +966,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           raw: undefined,
           content: summaryText || "Done. The site is in your workspace.",
         });
-        patchProject(projectId, { previewUrl, sandboxId, mode, builder, title });
+        patchProject(projectId, { previewUrl, sandboxId, mode, builder, title, runCommand });
+        void nameChat(projectId, prompt, summaryText, project.messages.length <= 1, builder);
       } catch (error) {
         if (controller.signal.aborted) {
           patchMessage(projectId, assistant.id, { pending: false, content: "Stopped." });
@@ -749,7 +982,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         setPhase("");
       }
     },
-    [patchMessage, patchProject, refreshPreview],
+    [nameChat, patchMessage, patchProject],
   );
 
   const send = useCallback(

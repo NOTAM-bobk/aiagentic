@@ -1,8 +1,10 @@
 # Kiln
 
-A terminal for building websites. You describe a site in the prompt line; an agent plans it,
-searches the web when it needs facts, writes real HTML/CSS/JS, and serves the result in a sandbox
-you can watch. There is no marketing page — the workspace is the whole app at `/`.
+A terminal for building software. You describe what you want; an agent thinks it through, answers
+or asks a question back, then writes real files and serves the result in a sandbox you can watch.
+Static pages, React + Vite apps, and scripts in other languages all work: the agent writes the
+project, installs its dependencies, bundles it, and runs it. There is no marketing page — the
+workspace is the whole app at `/`.
 
 Hosted on Vercel. Built with Next.js 16, React 19, Tailwind CSS 4, and the Vercel AI SDK.
 
@@ -30,17 +32,22 @@ app still runs, but builds happen in Browser mode with Puter.
 
 ```
 prompt
-  └─ decide      Groq · openai/gpt-oss-120b        → answer in words, ask back, or plan a build
-  └─ plan        only when building               → concept, art direction, files, steps
-  └─ build       Gemini 3.8 Flash (or Puter)       → <file>, <search>, <shell>, <connect>
+  └─ decide      Groq · openai/gpt-oss-120b        → answer, ask with options, or plan a build
+  └─ plan        only when building               → concept, stack, art direction, files
+  └─ build       Gemini 3.8 Flash (or Puter)       → <think>, <say>, <file>, <shell>, <run>, <ask>
+  └─ install     Daytona · npm/bun                 → dependencies for package.json projects
+  └─ bundle      Daytona · npm run build           → dist/ served, or a dev server started
   └─ execute     Tavily · Daytona · Composio       → results fed into the next round
-  └─ preview     Daytona signed URL / srcDoc       → the running site
+  └─ preview     Daytona signed URL / srcDoc       → the running app
+  └─ name        Groq / Gemini                     → a short title for the conversation
 ```
 
 Every message is read before anything is built. The agent answers questions, gives feedback, and
-asks one or two short questions when a brief is too thin to design against — it only writes files
-when the request is actually a build. Without `GROQ_API_KEY` there is no separate decision step,
-and the builder model makes the same call itself.
+asks one or two short questions when a brief is too thin — with clickable options when the answer
+is a choice. It shows its reasoning, every command it runs, and the step it is on while it works.
+It only writes files when the request is actually a build, and the first turn names the
+conversation. Without `GROQ_API_KEY` there is no separate decision step, and the builder model
+makes the same call itself.
 
 Two execution modes:
 
@@ -49,8 +56,15 @@ Two execution modes:
   no sandbox. Puter's browser models can plan and build here, so the app is usable with zero setup.
 
 The builder speaks a small XML protocol instead of native tool calling, so Gemini, Groq, and
-Puter models behave identically. `src/lib/protocol.ts` parses it; `src/lib/prompts.ts` defines the
-planner and builder system prompts.
+Puter models behave identically: `<think>` for visible reasoning, `<ask>` for a question with
+options, `<file>` for complete files, `<shell>` for one-off commands, `<run>` for a long-running
+server, and `<done>` for the closing summary. `src/lib/protocol.ts` parses it;
+`src/lib/prompts.ts` defines the planner, builder, and title prompts.
+
+Project types are detected, not declared. A `package.json` gets its dependencies installed and
+its build script run before the preview starts; built output (`dist/`, `build/`, `out/`) is served
+statically, otherwise `dev` or `start` scripts are launched on port 3000. A `<run>` command covers
+everything else — Python, Go, or any server that binds `0.0.0.0:3000`.
 
 ## Local development
 
@@ -110,6 +124,8 @@ Notes:
 - Composio connections need an auth config per toolkit. Create it in the Composio dashboard first,
   then use **Connectors → Connect**. The OAuth callback returns to the workspace.
 - Preview URLs from Daytona are signed and expire after six hours; press reload to mint a fresh one.
+- Browser mode can write React and server projects but cannot install, bundle, or run them; switch
+the prompt bar to cloud for those.
 - Projects persist in `localStorage`. Clearing site data removes them.
 
 ## Project layout

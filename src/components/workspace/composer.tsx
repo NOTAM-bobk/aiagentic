@@ -37,7 +37,7 @@ export function Composer({
     const node = textarea.current;
     if (!node) return;
     node.style.height = "auto";
-    node.style.height = `${Math.min(node.scrollHeight, 176)}px`;
+    node.style.height = `${Math.min(node.scrollHeight, 184)}px`;
   }, [value]);
 
   useEffect(() => {
@@ -59,11 +59,11 @@ export function Composer({
   ];
 
   return (
-    <div className="border-t border-line bg-paper-2/30 px-4 pb-4 pt-3 sm:px-8 sm:pb-6">
-      <div className="mx-auto max-w-[46rem]">
+    <div className="border-t border-line bg-paper-2/40 px-4 pb-4 pt-3 sm:px-8 sm:pb-6">
+      <div className="mx-auto max-w-[47rem]">
         <div className="border border-line bg-paper transition-colors focus-within:border-ember/50">
-          <div className="flex items-start gap-2.5 px-3 pt-3">
-            <span aria-hidden="true" className="select-none pt-px text-[13px] leading-relaxed text-ember">
+          <div className="flex items-start gap-3 px-3.5 pt-3">
+            <span aria-hidden="true" className="select-none pt-px text-[15px] leading-relaxed text-ember">
               ❯
             </span>
             <label htmlFor="composer" className="sr-only">
@@ -82,19 +82,19 @@ export function Composer({
               }}
               rows={1}
               spellCheck={false}
-              placeholder={mode === "cloud" ? "ask anything, or describe a site…" : "ask anything…"}
-              className="max-h-[176px] min-h-[28px] w-full resize-none bg-transparent pb-2.5 font-mono text-[13px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+              placeholder={mode === "cloud" ? "ask anything, or describe what to build…" : "ask anything…"}
+              className="max-h-[184px] min-h-[30px] w-full resize-none bg-transparent pb-3 font-mono text-[14px] leading-[1.7] text-ink placeholder:text-ink-faint focus:outline-none"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-3 py-2 font-mono text-[11px]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line px-3 py-2 font-mono text-[12px]">
             <label className="flex items-center gap-1.5 text-ink-faint">
               <span className="sr-only">Builder model</span>
               <select
                 aria-label="Builder model"
                 value={builder}
                 onChange={(event) => onBuilder(event.target.value)}
-                className="max-w-[150px] cursor-pointer truncate border-0 bg-transparent py-0 pl-0 pr-4 text-ink-soft focus:outline-none"
+                className="max-w-[160px] cursor-pointer truncate border border-line bg-paper px-1.5 py-1.5 text-ink-soft transition-colors hover:border-line-strong hover:text-ink focus:outline-none"
               >
                 {options.map((option) => (
                   <option key={option.id} value={option.id} className="bg-paper-2 text-ink">
@@ -112,14 +112,10 @@ export function Composer({
                   aria-label="Puter model"
                   value={puterModel}
                   onChange={(event) => onPuterModel(event.target.value)}
-                  className="max-w-[150px] cursor-pointer truncate border-0 bg-transparent py-0 pl-0 pr-4 text-ink-soft focus:outline-none"
+                  className="max-w-[160px] cursor-pointer truncate border border-line bg-paper px-1.5 py-1.5 text-ink-soft transition-colors hover:border-line-strong hover:text-ink focus:outline-none"
                 >
                   {PUTER_MODELS.map((model) => (
-                    <option
-                      key={model.id || "default"}
-                      value={model.id}
-                      className="bg-paper-2 text-ink"
-                    >
+                    <option key={model.id || "default"} value={model.id} className="bg-paper-2 text-ink">
                       {model.label}
                     </option>
                   ))}
@@ -127,34 +123,34 @@ export function Composer({
               </label>
             )}
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => onMode("cloud")}
+                title={capabilities?.daytona ? "Run files in a Daytona sandbox" : "Needs DAYTONA_API_KEY"}
                 className={cn(
-                  "inline-flex items-center gap-1 transition-colors",
-                  mode === "cloud" ? "text-ember" : "text-ink-faint hover:text-ink-soft",
+                  "inline-flex min-h-8 items-center gap-1.5 border px-2 py-1.5 transition-colors",
+                  mode === "cloud"
+                    ? "border-ember/40 bg-ember/10 text-ember"
+                    : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
                 )}
-                title={
-                  capabilities?.daytona
-                    ? "Run files in a Daytona sandbox"
-                    : "Needs DAYTONA_API_KEY"
-                }
               >
-                <Cloud className="h-3 w-3" />
-                {mode === "cloud" ? "[cloud]" : "cloud"}
+                <Cloud className="h-3.5 w-3.5" />
+                cloud
               </button>
               <button
                 type="button"
                 onClick={() => onMode("local")}
-                className={cn(
-                  "inline-flex items-center gap-1 transition-colors",
-                  mode === "local" ? "text-ember" : "text-ink-faint hover:text-ink-soft",
-                )}
                 title="Files stay in this browser"
+                className={cn(
+                  "inline-flex min-h-8 items-center gap-1.5 border px-2 py-1.5 transition-colors",
+                  mode === "local"
+                    ? "border-ember/40 bg-ember/10 text-ember"
+                    : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
+                )}
               >
-                <Frame className="h-3 w-3" />
-                {mode === "local" ? "[browser]" : "browser"}
+                <Frame className="h-3.5 w-3.5" />
+                browser
               </button>
             </div>
 
@@ -163,18 +159,18 @@ export function Composer({
                 <button
                   type="button"
                   onClick={onStop}
-                  className="inline-flex items-center gap-1.5 border border-alert/40 px-2.5 py-1 text-alert transition-colors hover:border-alert hover:bg-alert-soft"
+                  className="inline-flex min-h-9 items-center gap-2 border border-alert/50 bg-alert-soft px-3.5 text-[12px] text-alert transition-colors hover:border-alert"
                 >
-                  <Square className="h-2 w-2 fill-current" /> stop
+                  <Square className="h-2.5 w-2.5 fill-current" /> stop
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={submit}
                   disabled={!value.trim()}
-                  className="inline-flex items-center gap-1.5 border border-ember/40 px-2.5 py-1 text-ember transition-colors hover:border-ember hover:bg-ember-soft disabled:cursor-not-allowed disabled:border-line disabled:text-ink-faint"
+                  className="inline-flex min-h-9 items-center gap-2 border border-ember/50 bg-ember/10 px-3.5 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15 disabled:cursor-not-allowed disabled:border-line disabled:bg-transparent disabled:text-ink-faint"
                 >
-                  send <span className="text-[9px]">⏎</span>
+                  send <span className="text-[10px] opacity-70">⏎</span>
                 </button>
               )}
             </div>
