@@ -49,7 +49,7 @@ function ToolRow({ tool }: { tool: ToolEvent }) {
 
   return (
     <div className="font-mono">
-      <div className="flex items-baseline gap-2 py-[3px] text-[11px] leading-relaxed">
+      <div className="flex items-baseline gap-2 py-1 text-[11.5px] leading-relaxed">
         <StatusGlyph status={tool.status} />
         <span className="shrink-0 text-ink-faint">{VERBS[tool.kind] ?? tool.kind}</span>
         {tool.output || url ? (
@@ -61,11 +61,6 @@ function ToolRow({ tool }: { tool: ToolEvent }) {
             className="group flex min-w-0 flex-1 items-baseline gap-2 text-left"
           >
             <span className="min-w-0 truncate text-ink-soft group-hover:text-ink">{tool.label}</span>
-            {tool.detail && (
-              <span className="hidden shrink-0 text-[9.5px] text-ink-faint sm:inline">
-                {tool.detail}
-              </span>
-            )}
             {tool.output && (
               <ChevronRight
                 className={cn(
@@ -78,11 +73,6 @@ function ToolRow({ tool }: { tool: ToolEvent }) {
         ) : (
           <span className="min-w-0 flex-1">
             <span className="block truncate text-ink-soft">{tool.label}</span>
-          </span>
-        )}
-        {tool.detail && !tool.output && (
-          <span className="hidden shrink-0 text-[9.5px] text-ink-faint sm:inline">
-            {tool.detail}
           </span>
         )}
         {url && (
@@ -140,7 +130,7 @@ function ActionApproval({ action, args }: { action: string; args: string }) {
   return (
     <div className="ml-5 border-l border-line py-1 pl-2.5">
       <div className="flex flex-wrap items-baseline gap-2 font-mono text-[10.5px]">
-        <span className="text-ink-faint">real connector action · nothing runs until you approve</span>
+        <span className="text-ink-faint">needs approval</span>
         <button
           type="button"
           onClick={run}
@@ -148,7 +138,7 @@ function ActionApproval({ action, args }: { action: string; args: string }) {
           className="inline-flex items-center gap-1 border border-ember/40 px-1.5 py-px text-ember transition-colors hover:border-ember hover:bg-ember-soft disabled:border-line disabled:text-ink-faint"
         >
           {state === "running" ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
-          {state === "ok" ? "ran ✓" : state === "running" ? "running" : "approve & run"}
+          {state === "ok" ? "ran ✓" : state === "running" ? "running" : "approve"}
         </button>
       </div>
       {result && (
@@ -168,11 +158,11 @@ function ActionApproval({ action, args }: { action: string; args: string }) {
 export function MessageItem({ message, phase }: { message: ChatMessage; phase: string }) {
   if (message.role === "user") {
     return (
-      <div className="flex gap-2 font-mono">
-        <span aria-hidden="true" className="select-none text-[12.5px] leading-relaxed text-ember">
+      <div className="flex gap-2.5 font-mono">
+        <span aria-hidden="true" className="select-none text-[13px] leading-relaxed text-ember">
           ❯
         </span>
-        <p className="min-w-0 flex-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-ink">
+        <p className="min-w-0 flex-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
           {message.content}
         </p>
       </div>
@@ -184,16 +174,11 @@ export function MessageItem({ message, phase }: { message: ChatMessage; phase: s
   const streaming = Boolean(message.pending);
 
   return (
-    <div className="flex flex-col gap-2 font-mono">
-      <p className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-[0.12em] text-ink-faint">
-        kiln
-        {streaming && <span className="h-1 w-1 rounded-full bg-ember animate-pulse-dot" />}
-      </p>
-
+    <div className="flex flex-col gap-3 font-mono">
       {message.plan && <PlanCard plan={message.plan} />}
 
       {tools.length > 0 && (
-        <div className="border-l border-line pl-2.5">
+        <div className="border-l border-line pl-3">
           {tools.map((tool) => (
             <ToolRow key={tool.id} tool={tool} />
           ))}
@@ -202,12 +187,12 @@ export function MessageItem({ message, phase }: { message: ChatMessage; phase: s
 
       {streaming && (
         <div>
-          <p className="flex items-center gap-1.5 text-[10.5px] text-ink-faint">
+          <p className="flex items-center gap-2 text-[11px] text-ink-faint">
             <span className="text-ember animate-pulse-dot">▌</span>
             {phase || "working"}
           </p>
           {preview && (
-            <p className="caret mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-ink-soft">
+            <p className="caret mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-soft">
               {preview}
             </p>
           )}
@@ -221,12 +206,8 @@ export function MessageItem({ message, phase }: { message: ChatMessage; phase: s
       )}
 
       {message.error && (
-        <div className="border-l border-alert/60 pl-2.5 font-mono">
-          <p className="text-[11px] text-alert">✗ that step didn&apos;t finish</p>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-ink-soft">{message.error}</p>
-          <p className="mt-1.5 text-[10px] text-ink-faint">
-            retry · switch the builder · check setup for missing keys
-          </p>
+        <div className="border-l border-alert/60 pl-3 font-mono">
+          <p className="text-[11px] text-alert">✗ {message.error}</p>
         </div>
       )}
     </div>

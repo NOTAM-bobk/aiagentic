@@ -14,15 +14,12 @@ export function PlanCard({ plan }: { plan: Plan }) {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-paper-2/60"
+        className="flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors hover:bg-paper-2/60"
       >
         <span className="mt-px text-[9px] text-ember">◆</span>
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-[11.5px] text-ink">{plan.title}</span>
-            <span className="text-[9px] uppercase tracking-[0.12em] text-ink-faint">plan</span>
-          </span>
-          <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+          <span className="block text-[12px] text-ink">{plan.title}</span>
+          <span className="mt-1 block text-[11.5px] leading-relaxed text-ink-soft">
             {plan.concept}
           </span>
         </span>
@@ -35,7 +32,7 @@ export function PlanCard({ plan }: { plan: Plan }) {
       </button>
 
       {open && (
-        <div className="border-t border-line px-2.5 py-2">
+        <div className="border-t border-line px-3.5 py-3">
           {plan.artDirection && (
             <dl className="grid grid-cols-[64px_1fr] gap-x-2 gap-y-1 text-[10.5px]">
               {plan.artDirection.palette && <Detail label="palette" value={plan.artDirection.palette} />}

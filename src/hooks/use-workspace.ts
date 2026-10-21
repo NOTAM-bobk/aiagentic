@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BUILDER_PROMPT, buildEditContext } from "@/lib/prompts";
 import {
   parseArtifacts,
+  streamPreview,
   type ChatMessage,
   type Plan,
   type Project,
@@ -376,8 +377,9 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       const puterModel = project.puterModel ?? PUTER_MODELS[0].id;
       let title = project.title;
       const observations: string[] = [];
-      const history = project.messages
-        .filter((message) => !message.pending && message.content)
+      const prior = project.messages.filter((message) => !message.pending && message.content);
+      if (prior.at(-1)?.role === "user" && prior.at(-1)?.content === prompt) prior.pop();
+      const history = prior
         .slice(-6)
         .map((message) => ({ role: message.role, content: message.content }));
 
@@ -416,10 +418,10 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       };
 
       try {
-        /* 1 — plan ------------------------------------------------------- */
-        setPhase("Planning");
-        const planTool = pushTool({ kind: "plan", label: "Drafting the build plan", detail: "groq · gpt-oss" });
+        /* 1 — decide: talk, or build? -------------------------------- */
+        setPhase("Thinking");
         let plan: Plan | null = null;
+        let reply: string | null = null;
         try {
           const response = await fetch("/api/plan", {
             method: "POST",
@@ -428,25 +430,31 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             signal: controller.signal,
           });
           if (!response.ok) throw new Error(await errorFromResponse(response));
-          const data = (await response.json()) as { plan: Plan; source: string; warning?: string };
-          plan = data.plan;
-          resolveTool(planTool, {
-            status: "ok",
-            label: data.source === "groq" ? "Plan ready" : "Provisional plan",
-            detail:
-              data.source === "groq"
-                ? `${plan.files?.length ?? 0} files · groq`
-                : "add GROQ_API_KEY for a sharper plan",
-            output: data.warning ? `${plan.concept}\n\n${data.warning}` : plan.concept,
-          });
-          patchMessage(projectId, assistant.id, { plan });
-          if (title === "Untitled site" || title === slugTitle(prompt)) {
-            title = plan.title;
-            patchProject(projectId, { title });
+          const data = (await response.json()) as {
+            action?: "build" | "chat" | "auto";
+            plan?: Plan | null;
+            reply?: string;
+          };
+
+          if (data.action === "chat" && data.reply?.trim()) {
+            reply = data.reply.trim();
+          } else if (data.action === "build" && data.plan) {
+            plan = data.plan;
+            patchMessage(projectId, assistant.id, { plan });
+            if (title === "Untitled site" || title === slugTitle(prompt)) {
+              title = plan.title;
+              patchProject(projectId, { title });
+            }
           }
         } catch (error) {
           if (controller.signal.aborted) throw error;
-          resolveTool(planTool, { status: "error", output: "Planning unavailable, proceeding directly." });
+          // No planner available: the builder reads the message itself.
+        }
+
+        if (reply) {
+          patchMessage(projectId, assistant.id, { content: reply, pending: false, raw: undefined });
+          patchProject(projectId, { title });
+          return;
         }
 
         if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -455,13 +463,13 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         let raw = "";
         let summaryText = "";
         for (let round = 1; round <= MAX_ROUNDS; round += 1) {
-          setPhase(round === 1 ? "Writing the site" : "Refining");
+          setPhase(round > 1 ? "Refining" : plan ? "Building" : "Thinking");
           raw = "";
           patchMessage(projectId, assistant.id, { pending: true, raw: "", error: undefined });
           const writeTool = pushTool({
             kind: "write",
-            label: round === 1 ? "Generating files" : `Revision ${round}`,
-            detail: builder === "puter" ? "puter · browser" : `builder · ${builder}`,
+            label: round > 1 ? `Revision ${round}` : plan ? "Building" : "Thinking",
+            detail: builder === "puter" ? "puter" : builder,
           });
 
           let flushAt = 0;
@@ -488,6 +496,10 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 model: puterModel,
                 messages: [
                   { role: "system", content: BUILDER_PROMPT },
+                  ...history.slice(-4).map((message) => ({
+                    role: message.role,
+                    content: truncate(message.content, 900),
+                  })),
                   { role: "user", content: `${context}\n\n# Request\n${prompt}` },
                 ],
                 onDelta,
@@ -534,23 +546,21 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
           if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
           patchMessage(projectId, assistant.id, { raw });
-          resolveTool(writeTool, { status: "ok", label: "Files generated", output: `${raw.length} chars` });
 
           const artifacts = parseArtifacts(raw);
           const fileArtifacts = artifacts.filter((artifact) => artifact.kind === "file");
           const doneArtifact = artifacts.find((artifact) => artifact.kind === "done");
 
+          // A reply in words is a valid turn: an answer, or a question back.
           if (fileArtifacts.length === 0) {
-            if (doneArtifact?.kind === "done") {
-              summaryText = doneArtifact.summary;
-              patchMessage(projectId, assistant.id, { content: summaryText });
-              break;
+            const said = streamPreview(raw) || (doneArtifact?.kind === "done" ? doneArtifact.summary : "");
+            if (!said) {
+              resolveTool(writeTool, { status: "error", output: "empty response" });
+              throw new Error("The model sent back nothing. Try again, or switch builders.");
             }
-            if (round === 1) {
-              throw new Error(
-                "The builder replied without file blocks. This usually means the response was cut off — retry, switch to Puter, or ask for a smaller site.",
-              );
-            }
+            resolveTool(writeTool, { status: "ok", label: "Replied" });
+            summaryText = said;
+            patchMessage(projectId, assistant.id, { content: said, pending: false, raw: undefined });
             break;
           }
 
@@ -558,15 +568,11 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           const incoming: ProjectFile[] = fileArtifacts.map((artifact) =>
             artifact.kind === "file" ? { path: artifact.path, content: artifact.content } : { path: "", content: "" },
           );
+          const wrote = `Wrote ${incoming.length} file${incoming.length === 1 ? "" : "s"}`;
 
           if (mode === "cloud") {
             const id = await ensureSandbox();
             if (id) {
-              const writeId = pushTool({
-                kind: "write",
-                label: `Writing ${incoming.length} file${incoming.length === 1 ? "" : "s"}`,
-                detail: incoming.map((file) => file.path).join(", "),
-              });
               try {
                 const response = await fetch("/api/sandbox", {
                   method: "POST",
@@ -576,9 +582,9 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 });
                 if (!response.ok) throw new Error(await errorFromResponse(response));
                 mergeFiles(incoming);
-                resolveTool(writeId, { status: "ok", output: "saved to /site" });
+                resolveTool(writeTool, { status: "ok", label: wrote, output: "saved to /site" });
               } catch (error) {
-                resolveTool(writeId, {
+                resolveTool(writeTool, {
                   status: "error",
                   output: error instanceof Error ? error.message : "Write failed",
                 });
@@ -588,17 +594,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
               mode = "local";
               patchProject(projectId, { mode });
               mergeFiles(incoming);
+              resolveTool(writeTool, { status: "ok", label: wrote });
               observations.push("Daytona was unavailable, so files were saved in the browser workspace instead.");
             }
           } else {
             mergeFiles(incoming);
-            pushTool({
-              kind: "write",
-              label: `Wrote ${incoming.length} file${incoming.length === 1 ? "" : "s"}`,
-              detail: incoming.map((file) => file.path).join(", "),
-              status: "ok",
-              output: "browser workspace",
-            });
+            resolveTool(writeTool, { status: "ok", label: wrote });
           }
 
           /* 4 — other tools -------------------------------------------- */

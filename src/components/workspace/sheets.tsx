@@ -176,7 +176,7 @@ export function IntegrationsSheet({
       open={open}
       onClose={onClose}
       title="Connectors"
-      subtitle="Composio handles OAuth. Kiln only receives scoped access, never passwords."
+      subtitle="oauth through composio"
     >
       {!composioReady ? (
         <div className="border border-line bg-paper-2/40 p-3 font-mono">
@@ -216,8 +216,8 @@ export function IntegrationsSheet({
           </div>
 
           {loading ? (
-            <div className="flex items-center gap-2 py-6 text-[12.5px] text-ink-soft">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading toolkits…
+            <div className="flex items-center gap-2 py-8 text-[12px] text-ink-soft">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> loading…
             </div>
           ) : (
             <ul className="divide-y divide-line border-y border-line">
@@ -257,11 +257,6 @@ export function IntegrationsSheet({
               ))}
             </ul>
           )}
-
-          <p className="mt-3 font-mono text-[10px] leading-relaxed text-ink-faint">
-            connecting opens composio in a new tab. finish there, then refresh this list. if a
-            toolkit is missing, create an auth config for it in the composio dashboard first.
-          </p>
 
           <div className="mt-6 border-t border-line pt-4">
             <button
@@ -325,35 +320,35 @@ const ENV_VARS: { key: string; label: string; purpose: string; href: string; cap
   {
     key: "GROQ_API_KEY",
     label: "Groq",
-    purpose: "Planning and thinking. Fast, cheap, free tier.",
+    purpose: "Thinking and planning",
     href: "https://console.groq.com/keys",
     capability: "groq",
   },
   {
     key: "GOOGLE_GENERATIVE_AI_API_KEY",
     label: "Google AI Studio",
-    purpose: "The builder model: Gemini 3.8 Flash.",
+    purpose: "Building the site",
     href: "https://aistudio.google.com/apikey",
     capability: "google",
   },
   {
     key: "TAVILY_API_KEY",
     label: "Tavily",
-    purpose: "Live web search inside builds.",
+    purpose: "Web search",
     href: "https://app.tavily.com/home",
     capability: "tavily",
   },
   {
     key: "DAYTONA_API_KEY",
     label: "Daytona",
-    purpose: "Cloud sandboxes, commands, signed previews.",
+    purpose: "Cloud sandbox + previews",
     href: "https://app.daytona.io/dashboard/keys",
     capability: "daytona",
   },
   {
     key: "COMPOSIO_API_KEY",
     label: "Composio",
-    purpose: "GitHub, Supabase, Cloudflare, Vercel connectors.",
+    purpose: "GitHub, Supabase, Cloudflare",
     href: "https://app.composio.dev/developers",
     capability: "composio",
   },
@@ -378,13 +373,11 @@ export function SetupSheet({
       open={open}
       onClose={onClose}
       title="setup"
-      subtitle="keys live in vercel environment variables and are read server-side only."
+      subtitle="server-side keys"
     >
-      <div className="border border-line bg-paper-2/40 px-3 py-2.5 font-mono">
-        <p className="text-[10.5px] leading-relaxed text-ink-soft">
-          {missing === 0
-            ? "Everything is configured. Cloud builds, search, and connectors are available."
-            : `${missing} key${missing === 1 ? "" : "s"} missing. Browser mode still works — puter builds need no keys.`}
+      <div className="border border-line bg-paper-2/40 px-3 py-3 font-mono">
+        <p className="text-[11px] leading-relaxed text-ink-soft">
+          {missing === 0 ? "all set" : `${missing} key${missing === 1 ? "" : "s"} missing`}
         </p>
         <button
           type="button"
@@ -429,15 +422,15 @@ export function SetupSheet({
         })}
       </ul>
 
-      <div className="mt-5">
-        <p className="label-xs text-ink-faint">optional overrides</p>
+      <div className="mt-6">
+        <p className="label-xs text-ink-faint">overrides</p>
         <dl className="mt-2 space-y-1.5 font-mono text-[10.5px] text-ink-soft">
           {[
-            ["GROQ_PLANNER_MODEL", "openai/gpt-oss-120b"],
+            ["GROQ_PLANNER_MODEL", "gpt-oss-120b"],
             ["GOOGLE_BUILDER_MODEL", "gemini-3.8-flash"],
-            ["GROQ_BUILDER_MODEL", "openai/gpt-oss-120b"],
-            ["DAYTONA_API_URL", "defaults to Daytona cloud"],
-            ["DAYTONA_TARGET", "defaults to your region"],
+            ["GROQ_BUILDER_MODEL", "gpt-oss-120b"],
+            ["DAYTONA_API_URL", "daytona cloud"],
+            ["DAYTONA_TARGET", "your region"],
           ].map(([key, value]) => (
             <div key={key} className="flex flex-wrap justify-between gap-2 border-b border-line/70 pb-1">
               <dt className="text-ink">{key}</dt>
@@ -445,16 +438,6 @@ export function SetupSheet({
             </div>
           ))}
         </dl>
-      </div>
-
-      <div className="mt-5 border-t border-line pt-3">
-        <p className="label-xs text-ink-faint">on vercel</p>
-        <ol className="mt-2 space-y-1 font-mono text-[10.5px] leading-relaxed text-ink-faint">
-          <li>1. project → settings → environment variables</li>
-          <li>2. add each key for production, preview, development</li>
-          <li>3. redeploy so the values are picked up</li>
-          <li>local: put the same keys in .env.local</li>
-        </ol>
       </div>
     </Sheet>
   );

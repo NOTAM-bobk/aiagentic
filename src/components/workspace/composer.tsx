@@ -37,7 +37,7 @@ export function Composer({
     const node = textarea.current;
     if (!node) return;
     node.style.height = "auto";
-    node.style.height = `${Math.min(node.scrollHeight, 168)}px`;
+    node.style.height = `${Math.min(node.scrollHeight, 176)}px`;
   }, [value]);
 
   useEffect(() => {
@@ -53,21 +53,21 @@ export function Composer({
   }
 
   const options = [
-    { id: "gemini", label: "gemini-3.8-flash", ready: Boolean(capabilities?.google) },
-    { id: "groq", label: "gpt-oss-120b", ready: Boolean(capabilities?.groq) },
-    { id: "puter", label: "puter (free)", ready: true },
+    { id: "gemini", label: "gemini", ready: Boolean(capabilities?.google) },
+    { id: "groq", label: "groq", ready: Boolean(capabilities?.groq) },
+    { id: "puter", label: "puter · free", ready: true },
   ];
 
   return (
-    <div className="border-t border-line bg-paper-2/30 px-3 pb-2.5 pt-2 sm:px-5">
-      <div className="mx-auto max-w-2xl">
+    <div className="border-t border-line bg-paper-2/30 px-4 pb-4 pt-3 sm:px-8 sm:pb-6">
+      <div className="mx-auto max-w-[46rem]">
         <div className="border border-line bg-paper transition-colors focus-within:border-ember/50">
-          <div className="flex items-start gap-2 px-2.5 pt-2.5">
-            <span aria-hidden="true" className="select-none pt-px text-[12px] leading-relaxed text-ember">
+          <div className="flex items-start gap-2.5 px-3 pt-3">
+            <span aria-hidden="true" className="select-none pt-px text-[13px] leading-relaxed text-ember">
               ❯
             </span>
             <label htmlFor="composer" className="sr-only">
-              Describe a change or a new site
+              Message the agent
             </label>
             <textarea
               id="composer"
@@ -82,41 +82,37 @@ export function Composer({
               }}
               rows={1}
               spellCheck={false}
-              placeholder={
-                mode === "cloud"
-                  ? "ask for a change, or describe a new site…"
-                  : "describe the site — it builds and previews in your browser…"
-              }
-              className="max-h-[168px] min-h-[26px] w-full resize-none bg-transparent pb-2 font-mono text-[12.5px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
+              placeholder={mode === "cloud" ? "ask anything, or describe a site…" : "ask anything…"}
+              className="max-h-[176px] min-h-[28px] w-full resize-none bg-transparent pb-2.5 font-mono text-[13px] leading-relaxed text-ink placeholder:text-ink-faint focus:outline-none"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line px-2.5 py-1.5 font-mono text-[10.5px]">
-            <label className="flex items-center gap-1 text-ink-faint">
-              builder
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-3 py-2 font-mono text-[11px]">
+            <label className="flex items-center gap-1.5 text-ink-faint">
+              <span className="sr-only">Builder model</span>
               <select
                 aria-label="Builder model"
                 value={builder}
                 onChange={(event) => onBuilder(event.target.value)}
-                className="max-w-[150px] cursor-pointer truncate border-0 bg-transparent py-0 pl-0 pr-3 text-ink-soft focus:outline-none"
+                className="max-w-[150px] cursor-pointer truncate border-0 bg-transparent py-0 pl-0 pr-4 text-ink-soft focus:outline-none"
               >
                 {options.map((option) => (
                   <option key={option.id} value={option.id} className="bg-paper-2 text-ink">
                     {option.label}
-                    {option.ready ? "" : " (key needed)"}
+                    {option.ready ? "" : " (key)"}
                   </option>
                 ))}
               </select>
             </label>
 
             {builder === "puter" && (
-              <label className="flex items-center gap-1 text-ink-faint">
-                model
+              <label className="flex items-center gap-1.5 text-ink-faint">
+                <span className="sr-only">Puter model</span>
                 <select
                   aria-label="Puter model"
                   value={puterModel}
                   onChange={(event) => onPuterModel(event.target.value)}
-                  className="max-w-[150px] cursor-pointer truncate border-0 bg-transparent py-0 pl-0 pr-3 text-ink-soft focus:outline-none"
+                  className="max-w-[150px] cursor-pointer truncate border-0 bg-transparent py-0 pl-0 pr-4 text-ink-soft focus:outline-none"
                 >
                   {PUTER_MODELS.map((model) => (
                     <option
@@ -131,7 +127,7 @@ export function Composer({
               </label>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => onMode("cloud")}
@@ -142,10 +138,10 @@ export function Composer({
                 title={
                   capabilities?.daytona
                     ? "Run files in a Daytona sandbox"
-                    : "Needs DAYTONA_API_KEY — add it in setup"
+                    : "Needs DAYTONA_API_KEY"
                 }
               >
-                <Cloud className="h-2.5 w-2.5" />
+                <Cloud className="h-3 w-3" />
                 {mode === "cloud" ? "[cloud]" : "cloud"}
               </button>
               <button
@@ -157,40 +153,33 @@ export function Composer({
                 )}
                 title="Files stay in this browser"
               >
-                <Frame className="h-2.5 w-2.5" />
+                <Frame className="h-3 w-3" />
                 {mode === "local" ? "[browser]" : "browser"}
               </button>
             </div>
 
-            <span className="ml-auto hidden text-[9.5px] text-ink-faint sm:inline">
-              shift+enter · newline
-            </span>
-
-            {busy ? (
-              <button
-                type="button"
-                onClick={onStop}
-                className="inline-flex items-center gap-1.5 border border-alert/40 px-2 py-[3px] text-alert transition-colors hover:border-alert hover:bg-alert-soft"
-              >
-                <Square className="h-2 w-2 fill-current" /> stop
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={submit}
-                disabled={!value.trim()}
-                className="inline-flex items-center gap-1.5 border border-ember/40 px-2 py-[3px] text-ember transition-colors hover:border-ember hover:bg-ember-soft disabled:cursor-not-allowed disabled:border-line disabled:text-ink-faint"
-              >
-                run <span className="text-[9px]">⏎</span>
-              </button>
-            )}
+            <div className="ml-auto flex items-center">
+              {busy ? (
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="inline-flex items-center gap-1.5 border border-alert/40 px-2.5 py-1 text-alert transition-colors hover:border-alert hover:bg-alert-soft"
+                >
+                  <Square className="h-2 w-2 fill-current" /> stop
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={!value.trim()}
+                  className="inline-flex items-center gap-1.5 border border-ember/40 px-2.5 py-1 text-ember transition-colors hover:border-ember hover:bg-ember-soft disabled:cursor-not-allowed disabled:border-line disabled:text-ink-faint"
+                >
+                  send <span className="text-[9px]">⏎</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
-
-        <p className="mt-1.5 hidden text-[9px] uppercase tracking-[0.1em] text-ink-faint sm:block">
-          {mode === "cloud" ? "files run in a daytona sandbox" : "files stay in your browser"} ·
-          enter to send
-        </p>
       </div>
     </div>
   );

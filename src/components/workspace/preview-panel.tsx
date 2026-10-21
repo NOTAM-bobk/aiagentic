@@ -44,8 +44,8 @@ export function PreviewPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-paper">
-      <div className="flex items-center justify-between gap-2 border-b border-line bg-paper-2/30 px-2.5 py-1.5 font-mono">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-line bg-paper-2/30 px-3 py-2 font-mono">
+        <div className="flex items-center gap-3">
           {TABS.map((item) => (
             <button
               key={item.id}
@@ -115,23 +115,14 @@ function PreviewTab({
   const hasFiles = (project?.files.length ?? 0) > 0;
 
   if (!project || !hasFiles) {
-    return (
-      <EmptyPanel
-        title="no output yet"
-        lines={[
-          "describe a site in the prompt line.",
-          "kiln writes the files, starts the sandbox,",
-          "and the running page renders here.",
-        ]}
-      />
-    );
+    return <EmptyPanel title="no site yet" lines={["it renders here after the first build."]} />;
   }
 
   if (project.mode === "cloud" && !cloudUrl) {
     return (
       <EmptyPanel
-        title="files ready · server idle"
-        lines={["start the preview server", "to get a signed url for this sandbox."]}
+        title="not running"
+        lines={["start the server to get a signed url."]}
         action={
           <button
             type="button"
@@ -228,12 +219,7 @@ function FilesTab({ project }: { project: Project | null }) {
   const current = files.find((file) => file.path === selected) ?? files[0] ?? null;
 
   if (files.length === 0) {
-    return (
-      <EmptyPanel
-        title="no files yet"
-        lines={["every build writes complete files.", "they show up here, ready to copy or export."]}
-      />
-    );
+    return <EmptyPanel title="no files" lines={["they appear here after a build."]} />;
   }
 
   async function copy() {
@@ -273,19 +259,14 @@ function FilesTab({ project }: { project: Project | null }) {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-2 border-b border-line px-2.5 py-1 font-mono text-[10px]">
           <span className="truncate text-ink-soft">{current?.path}</span>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-[9px] text-ink-faint sm:block">
-              {formatBytes(current?.content.length ?? 0)}
-            </span>
-            <button
-              type="button"
-              onClick={copy}
-              className="inline-flex items-center gap-1 text-[10px] text-ink-faint transition-colors hover:text-ember"
-            >
-              {copied ? <Check className="h-2.5 w-2.5 text-ember" /> : <Copy className="h-2.5 w-2.5" />}
-              {copied ? "copied" : "copy"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={copied ? "Copied" : "Copy file"}
+            className="inline-flex items-center text-ink-faint transition-colors hover:text-ember"
+          >
+            {copied ? <Check className="h-3 w-3 text-ember" /> : <Copy className="h-3 w-3" />}
+          </button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto bg-paper px-3 py-2">
           <pre className="font-mono text-[10.5px] leading-[1.75] text-ink-soft">
@@ -311,29 +292,11 @@ function ActivityTab({ project }: { project: Project | null }) {
     (message.tools ?? []).map((tool) => ({ ...tool, at: message.createdAt })),
   );
 
-  const summary = [
-    { label: "mode", value: project?.mode === "cloud" ? "daytona" : "browser" },
-    { label: "sandbox", value: project?.sandboxId ?? "—" },
-    { label: "files", value: String(project?.files.length ?? 0) },
-    { label: "steps", value: String(tools.length) },
-  ];
-
   return (
     <div className="flex h-full min-h-0 flex-col font-mono">
-      <dl className="shrink-0 border-b border-line px-2.5 py-2">
-        {summary.map((item) => (
-          <div key={item.label} className="flex items-baseline gap-2 text-[10.5px] leading-relaxed">
-            <dt className="w-16 shrink-0 text-ink-faint">{item.label}</dt>
-            <dd className="min-w-0 truncate text-ink-soft">{item.value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className="min-h-0 flex-1 overflow-auto px-2.5 py-2">
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-2.5">
         {tools.length === 0 ? (
-          <p className="py-8 text-center text-[10.5px] text-ink-faint">
-            tool calls, searches, and commands log here
-          </p>
+          <p className="py-10 text-center text-[11px] text-ink-faint">no activity</p>
         ) : (
           <ul className="space-y-1">
             {tools.map((tool) => (
@@ -378,23 +341,18 @@ function EmptyPanel({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 py-12 font-mono text-center">
-      <p className="text-[11px] text-ink-faint">
+    <div className="flex h-full flex-col items-center justify-center px-8 py-16 font-mono text-center">
+      <p className="text-[11.5px] text-ink-faint">
         <span className="text-ember">&gt;</span> {title}
       </p>
-      <div className="mt-2 space-y-0.5">
+      <div className="mt-2.5 space-y-1">
         {lines.map((line) => (
-          <p key={line} className="text-[10.5px] leading-relaxed text-ink-faint/80">
+          <p key={line} className="text-[11px] leading-relaxed text-ink-faint/80">
             {line}
           </p>
         ))}
       </div>
-      {action && <div className="mt-4">{action}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
-}
-
-function formatBytes(length: number): string {
-  if (length < 1024) return `${length} b`;
-  return `${(length / 1024).toFixed(1)} kb`;
 }

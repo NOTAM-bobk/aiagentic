@@ -3,12 +3,12 @@
 import { useCallback, useState } from "react";
 import {
   Cloud,
-  Download,
   Frame,
   Loader2,
   Menu,
   MessageSquare,
   Monitor,
+  Plug,
   Plus,
   Settings2,
   Trash2,
@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { KilnMark } from "@/components/brand";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { bundleHtml, cn, timeAgo } from "@/lib/utils";
+import { bundleHtml, cn } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { PuterAccount } from "./puter-account";
 import { PreviewPanel, type PanelTab } from "./preview-panel";
@@ -59,19 +59,11 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   }, []);
 
   const cloud = active?.mode === "cloud";
-  const status = !active
-    ? "idle"
-    : cloud
-      ? active.sandboxId
-        ? active.previewUrl
-          ? "sandbox · live"
-          : "sandbox · booting"
-        : "cloud"
-      : "browser";
+  const status = cloud ? (active?.previewUrl ? "live" : "cloud") : "browser";
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-paper font-mono text-ink">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-2.5 sm:gap-3 sm:px-3.5">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-3 sm:gap-3 sm:px-4">
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
@@ -84,7 +76,6 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         <div className="flex items-center gap-1.5">
           <KilnMark className="h-3.5 w-3.5 text-ember" />
           <span className="text-[12px] tracking-tight text-ink">kiln</span>
-          <span className="hidden text-[11px] text-ink-faint sm:inline">~/sites/</span>
         </div>
 
         <label htmlFor="project-title" className="sr-only">
@@ -108,29 +99,23 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           {status}
         </span>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-2">
           <PuterAccount onNotify={workspace.setToast} />
           <button
             type="button"
-            onClick={exportSite}
-            disabled={!active || active.files.length === 0}
-            className="hidden items-center gap-1 border border-line px-2 py-1 text-[10.5px] text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 sm:inline-flex"
-          >
-            <Download className="h-3 w-3" /> export
-          </button>
-          <button
-            type="button"
             onClick={openIntegrations}
-            className="hidden items-center gap-1 border border-line px-2 py-1 text-[10.5px] text-ink-soft transition-colors hover:border-line-strong hover:text-ink md:inline-flex"
+            aria-label="Connectors"
+            title="Connectors"
+            className="hidden border border-line p-1.5 text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:inline-block"
           >
-            connectors
+            <Plug className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={openSetup}
             aria-label="Setup"
             title="Setup"
-            className="border border-line p-1 text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+            className="border border-line p-1.5 text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
           >
             <Settings2 className="h-3.5 w-3.5" />
           </button>
@@ -140,7 +125,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               workspace.newProject();
               setMobileView("chat");
             }}
-            className="inline-flex items-center gap-1 border border-ember/40 bg-ember/10 px-2 py-1 text-[10.5px] text-ember transition-colors hover:border-ember hover:bg-ember/15"
+            className="inline-flex items-center gap-1.5 border border-ember/40 bg-ember/10 px-2 py-1.5 text-[11px] text-ember transition-colors hover:border-ember hover:bg-ember/15"
           >
             <Plus className="h-3 w-3" />
             <span className="hidden sm:inline">new</span>
@@ -171,8 +156,6 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               onBuilder={workspace.setBuilder}
               onPuterModel={workspace.setPuterModel}
               onMode={workspace.setMode}
-              onOpenSetup={openSetup}
-              onOpenIntegrations={openIntegrations}
             />
           </div>
 
@@ -240,7 +223,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             className="absolute inset-0 bg-night/80 backdrop-blur-[1px]"
           />
           <div className="relative flex h-full w-[272px] flex-col border-r border-line bg-paper">
-            <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <span className="label-xs text-ink-faint">sites</span>
               <button
                 type="button"
@@ -326,17 +309,10 @@ function ProjectList({
 }) {
   return (
     <>
-      <div className="flex-1 overflow-y-auto py-2">
-        <div className="flex items-center justify-between px-3 pb-2">
-          <p className="label-xs text-ink-faint">sites</p>
-          <span className="text-[9.5px] text-ink-faint">{projects.length}</span>
-        </div>
+      <div className="flex-1 overflow-y-auto py-3">
+        <p className="px-4 pb-3 text-[10px] uppercase tracking-[0.14em] text-ink-faint">sites</p>
         {projects.length === 0 ? (
-          <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-faint">
-            no sites yet
-            <br />
-            describe one to start
-          </p>
+          <p className="px-4 text-[11px] text-ink-faint">nothing yet</p>
         ) : (
           <ul>
             {projects.map((project) => {
@@ -347,7 +323,7 @@ function ProjectList({
                     type="button"
                     onClick={() => onSelect(project.id)}
                     className={cn(
-                      "flex w-full items-start gap-2 border-l-2 py-1.5 pl-2 pr-7 text-left transition-colors",
+                      "flex w-full items-center gap-2.5 border-l-2 py-2.5 pl-3 pr-8 text-left transition-colors",
                       current
                         ? "border-l-ember bg-paper-2/80"
                         : "border-l-transparent hover:border-l-line-strong hover:bg-paper-2/40",
@@ -355,24 +331,19 @@ function ProjectList({
                   >
                     <span
                       className={cn(
-                        "mt-px text-[10px]",
+                        "text-[10px]",
                         current ? "text-ember" : "text-ink-faint",
                       )}
                     >
                       {current ? "▸" : "·"}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          "block truncate text-[11.5px]",
-                          current ? "text-ink" : "text-ink-soft",
-                        )}
-                      >
-                        {project.title}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[9.5px] text-ink-faint">
-                        {project.files.length} files · {timeAgo(project.updatedAt)}
-                      </span>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-[12px]",
+                        current ? "text-ink" : "text-ink-soft",
+                      )}
+                    >
+                      {project.title}
                     </span>
                   </button>
                   <button
@@ -383,7 +354,7 @@ function ProjectList({
                       }
                     }}
                     aria-label={`Delete ${project.title}`}
-                    className="absolute right-1.5 top-2 p-1 text-ink-faint opacity-0 transition-opacity hover:text-alert focus:opacity-100 group-hover:opacity-100"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-faint opacity-0 transition-opacity hover:text-alert focus:opacity-100 group-hover:opacity-100"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -394,17 +365,14 @@ function ProjectList({
         )}
       </div>
 
-      <div className="border-t border-line p-2">
+      <div className="border-t border-line p-3">
         <button
           type="button"
           onClick={onNew}
-          className="flex w-full items-center gap-1.5 border border-dashed border-line px-2 py-1.5 text-[10.5px] text-ink-soft transition-colors hover:border-ember/50 hover:text-ember"
+          className="flex w-full items-center gap-1.5 border border-dashed border-line px-2 py-2 text-[11px] text-ink-soft transition-colors hover:border-ember/50 hover:text-ember"
         >
           <Plus className="h-3 w-3" /> new_site
         </button>
-        <p className="mt-2.5 px-1 text-[9px] uppercase leading-relaxed tracking-[0.1em] text-ink-faint">
-          saved in this browser
-        </p>
       </div>
     </>
   );

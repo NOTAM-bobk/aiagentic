@@ -30,11 +30,17 @@ app still runs, but builds happen in Browser mode with Puter.
 
 ```
 prompt
-  └─ plan        Groq · openai/gpt-oss-120b        → concept, art direction, files, steps
+  └─ decide      Groq · openai/gpt-oss-120b        → answer in words, ask back, or plan a build
+  └─ plan        only when building               → concept, art direction, files, steps
   └─ build       Gemini 3.8 Flash (or Puter)       → <file>, <search>, <shell>, <connect>
   └─ execute     Tavily · Daytona · Composio       → results fed into the next round
   └─ preview     Daytona signed URL / srcDoc       → the running site
 ```
+
+Every message is read before anything is built. The agent answers questions, gives feedback, and
+asks one or two short questions when a brief is too thin to design against — it only writes files
+when the request is actually a build. Without `GROQ_API_KEY` there is no separate decision step,
+and the builder model makes the same call itself.
 
 Two execution modes:
 
