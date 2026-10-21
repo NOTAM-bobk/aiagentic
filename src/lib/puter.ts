@@ -12,9 +12,25 @@ type PuterAI = {
   ) => Promise<string | AsyncIterable<PuterChunk>>;
 };
 
+export type PuterUser = { username?: string; email?: string; uuid?: string };
+
+type PuterSignInResult = {
+  success?: boolean;
+  username?: string;
+  error?: string;
+  msg?: string;
+};
+
+type PuterAuth = {
+  signIn: () => Promise<PuterSignInResult | undefined>;
+  signOut: () => void;
+  isSignedIn: () => boolean;
+  getUser: () => Promise<PuterUser>;
+};
+
 declare global {
   interface Window {
-    puter?: { ai?: PuterAI; auth?: () => Promise<unknown> };
+    puter?: { ai?: PuterAI; auth?: PuterAuth };
   }
 }
 
@@ -54,6 +70,38 @@ function chunkText(chunk: PuterChunk | string): string {
     return content.map((part) => part.text ?? "").join("");
   }
   return "";
+}
+
+/** The signed-in Puter user, or null. Safe to call before the SDK has loaded. */
+export async function puterSession(): Promise<PuterUser | null> {
+  await loadPuter();
+  const auth = window.puter?.auth;
+  if (!auth || !auth.isSignedIn()) return null;
+  try {
+    return await auth.getUser();
+  } catch {
+    return null;
+  }
+}
+
+/** Opens Puter's sign-in popup, then returns the user it signed in. */
+export async function puterSignIn(): Promise<PuterUser | null> {
+  await loadPuter();
+  const auth = window.puter?.auth;
+  if (!auth) throw new Error("Puter.js could not load. Check your network and retry.");
+
+  if (!auth.isSignedIn()) {
+    const result = await auth.signIn();
+    if (result && result.success === false) {
+      throw new Error(result.error ?? result.msg ?? "Puter sign-in did not complete.");
+    }
+  }
+
+  return puterSession();
+}
+
+export function puterSignOut(): void {
+  window.puter?.auth?.signOut();
 }
 
 export async function puterChat(input: {

@@ -1,22 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #faf8f4;
-  --paper-2: #f2efe7;
-  --paper-3: #eae5da;
-  --ink: #14120e;
-  --ink-soft: #57524a;
-  --ink-faint: #79736a;
-  --line: #e3ded3;
-  --line-strong: #d2cbbb;
-  --ember: #b8431b;
-  --ember-bright: #d9532a;
-  --ember-soft: #f6e7dc;
-  --night: #0c0b09;
-  --night-2: #131210;
-  --night-line: rgba(246, 242, 233, 0.1);
-  --cream: #f7f3ea;
-  --moss: #4f5d45;
+  color-scheme: dark;
+
+  --paper: #0a0b0c;
+  --paper-2: #121416;
+  --paper-3: #171a1d;
+  --ink: #e6e8ea;
+  --ink-soft: #9aa1a8;
+  --ink-faint: #6b7278;
+  --line: #1d2124;
+  --line-strong: #2d3338;
+  --ember: #7ee0a6;
+  --ember-bright: #a7f0c4;
+  --ember-soft: #102019;
+  --night: #060707;
+  --night-2: #0c0e0f;
+  --cream: #0a0b0c;
+  --moss: #7ee0a6;
+  --alert: #ff8172;
+  --alert-soft: #201211;
+  --warn: #e7c07a;
 }
 
 @theme inline {
@@ -35,9 +39,11 @@
   --color-night-2: var(--night-2);
   --color-cream: var(--cream);
   --color-moss: var(--moss);
+  --color-alert: var(--alert);
+  --color-alert-soft: var(--alert-soft);
+  --color-warn: var(--warn);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-instrument-serif);
 }
 
 * {
@@ -59,12 +65,12 @@ body {
 
 ::selection {
   background: var(--ember);
-  color: var(--cream);
+  color: var(--paper);
 }
 
 :focus-visible {
-  outline: 2px solid var(--ember);
-  outline-offset: 2px;
+  outline: 1px solid var(--ember);
+  outline-offset: 1px;
 }
 
 /* Thin, quiet scrollbars */
@@ -74,13 +80,16 @@ body {
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 
 *::-webkit-scrollbar-thumb {
   background: var(--line-strong);
-  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3b4248;
 }
 
 *::-webkit-scrollbar-track {
@@ -90,45 +99,14 @@ body {
 @utility label-xs {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 10px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-@utility hairline {
-  background-image: linear-gradient(to right, var(--night-line) 1px, transparent 1px);
-  background-size: 88px 100%;
-}
-
-@utility grain {
-  position: relative;
-}
-
-.grain::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.35;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 0.5px, transparent 0.5px);
-  background-size: 3px 3px;
-}
-
-.dot-grid {
-  background-image: radial-gradient(var(--line-strong) 0.7px, transparent 0.7px);
-  background-size: 18px 18px;
-}
-
-.grid-lines {
-  background-image:
-    linear-gradient(to right, rgba(20, 18, 14, 0.045) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 18, 14, 0.045) 1px, transparent 1px);
-  background-size: 56px 56px;
 }
 
 @keyframes kiln-fade-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -139,21 +117,10 @@ body {
 @keyframes kiln-pulse {
   0%,
   100% {
-    opacity: 0.35;
-    transform: scale(0.9);
+    opacity: 0.3;
   }
   50% {
     opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes kiln-shimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 200% 50%;
   }
 }
 
@@ -169,27 +136,18 @@ body {
 }
 
 .animate-fade-up {
-  animation: kiln-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: kiln-fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .animate-pulse-dot {
-  animation: kiln-pulse 1.6s ease-in-out infinite;
-}
-
-.shimmer {
-  background: linear-gradient(90deg, var(--ink-faint) 0%, var(--ink) 50%, var(--ink-faint) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: kiln-shimmer 2.4s linear infinite;
+  animation: kiln-pulse 1.4s ease-in-out infinite;
 }
 
 .caret::after {
   content: "";
   display: inline-block;
   width: 7px;
-  height: 1.05em;
+  height: 1.02em;
   margin-left: 2px;
   background: var(--ember);
   vertical-align: text-bottom;
@@ -208,9 +166,9 @@ body {
 }
 
 .markdown {
-  font-size: 14.5px;
-  line-height: 1.65;
-  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
 }
 
 .markdown p + p {
@@ -220,6 +178,7 @@ body {
 .markdown h1,
 .markdown h2,
 .markdown h3 {
+  color: var(--ink);
   font-weight: 500;
   letter-spacing: -0.01em;
   margin-top: 1.1em;
@@ -242,11 +201,11 @@ body {
 
 .markdown code {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 0.86em;
-  background: var(--paper-2);
+  font-size: 0.88em;
+  color: var(--ink);
+  background: var(--paper-3);
   border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0.08em 0.32em;
+  padding: 0.06em 0.3em;
 }
 
 .markdown a {
@@ -256,5 +215,20 @@ body {
 }
 
 .markdown strong {
+  color: var(--ink);
   font-weight: 550;
+}
+
+.markdown pre {
+  overflow-x: auto;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  margin: 0.7em 0;
+}
+
+.markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
 }

@@ -52,16 +52,16 @@ function Sheet({
         className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]"
       />
       <div className="relative flex h-full w-full max-w-md flex-col border-l border-line bg-paper shadow-2xl animate-fade-up">
-        <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-          <div>
-            <h2 className="text-[15px] font-medium tracking-[-0.01em]">{title}</h2>
-            {subtitle && <p className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">{subtitle}</p>}
+        <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
+          <div className="font-mono">
+            <h2 className="text-[12.5px] tracking-tight text-ink">{title.toLowerCase()}</h2>
+            {subtitle && <p className="mt-1 text-[10.5px] leading-relaxed text-ink-faint">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close panel"
-            className="rounded border border-line p-1 text-ink-faint transition-colors hover:text-ink"
+            className="border border-line p-1 text-ink-faint transition-colors hover:text-ink"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -179,25 +179,25 @@ export function IntegrationsSheet({
       subtitle="Composio handles OAuth. Kiln only receives scoped access, never passwords."
     >
       {!composioReady ? (
-        <div className="rounded-md border border-line bg-paper-2/50 p-4">
-          <KeyRound className="h-4 w-4 text-ember" />
-          <p className="mt-2 text-[13px] font-medium">Composio isn&apos;t configured</p>
-          <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">
-            Add <code className="font-mono text-[11px]">COMPOSIO_API_KEY</code> to link GitHub,
-            Supabase, Cloudflare, Vercel and more.
+        <div className="border border-line bg-paper-2/40 p-3 font-mono">
+          <KeyRound className="h-3.5 w-3.5 text-ember" />
+          <p className="mt-2 text-[11.5px] text-ink">composio isn&apos;t configured</p>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-ink-soft">
+            add <code className="text-[10.5px] text-ink">COMPOSIO_API_KEY</code> to link github,
+            supabase, cloudflare, vercel and more.
           </p>
           <button
             type="button"
             onClick={onOpenSetup}
-            className="mt-3 inline-flex items-center gap-1.5 rounded bg-ink px-3 py-1.5 text-[12px] text-cream"
+            className="mt-3 inline-flex items-center gap-1.5 border border-ember/40 px-2 py-1 text-[10.5px] text-ember transition-colors hover:border-ember hover:bg-ember-soft"
           >
-            Open setup <ArrowUpRight className="h-3 w-3" />
+            open setup <ArrowUpRight className="h-2.5 w-2.5" />
           </button>
         </div>
       ) : (
         <>
           {error && (
-            <p className="mb-3 rounded border border-ember/30 bg-ember-soft/50 px-3 py-2 text-[12px] text-ember">
+            <p className="mb-3 border-l-2 border-alert/60 py-1 pl-2.5 font-mono text-[11px] text-alert">
               {error}
             </p>
           )}
@@ -223,15 +223,15 @@ export function IntegrationsSheet({
             <ul className="divide-y divide-line border-y border-line">
               {toolkits.map((toolkit) => (
                 <li key={toolkit.slug} className="flex items-center gap-3 py-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-line bg-paper-2/60 font-mono text-[11px] uppercase text-ink-soft">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-line bg-paper-2/60 font-mono text-[10px] uppercase text-ink-faint">
                     {toolkit.name.slice(0, 2)}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1.5 text-[13px] font-medium">
+                  <div className="min-w-0 flex-1 font-mono">
+                    <p className="flex items-center gap-1.5 text-[11.5px] text-ink">
                       {toolkit.name}
-                      {toolkit.connected && <Check className="h-3 w-3 text-moss" />}
+                      {toolkit.connected && <Check className="h-3 w-3 text-ember" />}
                     </p>
-                    <p className="truncate text-[11.5px] text-ink-soft">
+                    <p className="truncate text-[10.5px] text-ink-faint">
                       {toolkit.connected ? "Connected" : toolkit.blurb ?? toolkit.slug}
                     </p>
                   </div>
@@ -240,10 +240,10 @@ export function IntegrationsSheet({
                     onClick={() => connect(toolkit.slug)}
                     disabled={connecting === toolkit.slug}
                     className={cn(
-                      "inline-flex shrink-0 items-center gap-1 rounded border px-2 py-1 text-[11px] transition-colors",
+                      "inline-flex shrink-0 items-center gap-1 border px-2 py-1 font-mono text-[10.5px] transition-colors",
                       toolkit.connected
-                        ? "border-line text-ink-soft hover:border-line-strong"
-                        : "border-ink bg-ink text-cream hover:bg-ink/90",
+                        ? "border-line text-ink-soft hover:border-line-strong hover:text-ink"
+                        : "border-ember/40 bg-ember/10 text-ember hover:border-ember",
                     )}
                   >
                     {connecting === toolkit.slug ? (
@@ -258,18 +258,18 @@ export function IntegrationsSheet({
             </ul>
           )}
 
-          <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
-            Connecting opens Composio in a new tab. Finish there, then reload this list. If a toolkit
-            is missing, create an auth config for it in the Composio dashboard first.
+          <p className="mt-3 font-mono text-[10px] leading-relaxed text-ink-faint">
+            connecting opens composio in a new tab. finish there, then refresh this list. if a
+            toolkit is missing, create an auth config for it in the composio dashboard first.
           </p>
 
           <div className="mt-6 border-t border-line pt-4">
             <button
               type="button"
               onClick={() => setShowAdvanced((value) => !value)}
-              className="flex w-full items-center justify-between text-[12.5px] font-medium"
+              className="flex w-full items-center justify-between font-mono text-[11px] text-ink-soft hover:text-ink"
             >
-              Run a connector action
+              run a connector action
               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showAdvanced && "rotate-180")} />
             </button>
 
@@ -283,7 +283,7 @@ export function IntegrationsSheet({
                     id="action"
                     value={action}
                     onChange={(event) => setAction(event.target.value)}
-                    className="mt-1 w-full rounded border border-line bg-paper px-2.5 py-1.5 font-mono text-[11px] focus:border-line-strong focus:outline-none"
+                    className="mt-1 w-full border border-line bg-paper px-2.5 py-1.5 font-mono text-[11px] text-ink focus:border-ember/50 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -295,20 +295,20 @@ export function IntegrationsSheet({
                     value={args}
                     onChange={(event) => setArgs(event.target.value)}
                     rows={4}
-                    className="mt-1 w-full resize-y rounded border border-line bg-paper px-2.5 py-1.5 font-mono text-[11px] leading-relaxed focus:border-line-strong focus:outline-none"
+                    className="mt-1 w-full resize-y border border-line bg-paper px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-ink focus:border-ember/50 focus:outline-none"
                   />
                 </div>
                 <button
                   type="button"
                   onClick={execute}
                   disabled={running}
-                  className="inline-flex items-center gap-1.5 rounded bg-ink px-3 py-1.5 text-[12px] text-cream disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 border border-ember/40 px-2.5 py-1 font-mono text-[10.5px] text-ember transition-colors hover:border-ember hover:bg-ember-soft disabled:opacity-60"
                 >
                   {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plug className="h-3 w-3" />}
-                  Execute
+                  execute
                 </button>
                 {result && (
-                  <pre className="max-h-64 overflow-auto rounded border border-line bg-paper-2/40 p-2.5 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap">
+                  <pre className="max-h-64 overflow-auto border border-line bg-paper-2/40 p-2.5 font-mono text-[10.5px] leading-relaxed whitespace-pre-wrap text-ink-soft">
                     {result}
                   </pre>
                 )}
@@ -377,11 +377,11 @@ export function SetupSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Setup"
-      subtitle="Keys live in Vercel environment variables and are read server-side only."
+      title="setup"
+      subtitle="keys live in vercel environment variables and are read server-side only."
     >
-      <div className="rounded-md border border-line bg-paper-2/50 px-3.5 py-3">
-        <p className="text-[12.5px] leading-relaxed text-ink-soft">
+      <div className="border border-line bg-paper-2/40 px-3 py-2.5 font-mono">
+        <p className="text-[10.5px] leading-relaxed text-ink-soft">
           {missing === 0
             ? "Everything is configured. Cloud builds, search, and connectors are available."
             : `${missing} key${missing === 1 ? "" : "s"} missing. Browser mode still works — puter builds need no keys.`}
@@ -395,42 +395,42 @@ export function SetupSheet({
           }}
           className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-ember hover:underline"
         >
-          <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} /> Recheck
+          <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} /> recheck
         </button>
       </div>
 
-      <ul className="mt-5 space-y-3">
+      <ul className="mt-4 divide-y divide-line border-y border-line">
         {ENV_VARS.map((item) => {
           const ready = item.capability ? Boolean(capabilities?.[item.capability]) : false;
           return (
-            <li key={item.key} className="rounded-md border border-line px-3.5 py-3">
+            <li key={item.key} className="px-1 py-2.5 font-mono">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-[13px] font-medium">
+                  <p className="flex items-center gap-2 text-[11.5px] text-ink">
                     <span
-                      className={cn("h-1.5 w-1.5 rounded-full", ready ? "bg-moss" : "bg-line-strong")}
+                      className={cn("h-1 w-1 rounded-full", ready ? "bg-ember" : "bg-line-strong")}
                     />
-                    {item.label}
+                    <span className={ready ? "text-ink" : "text-ink-soft"}>{item.key}</span>
                   </p>
-                  <p className="mt-0.5 font-mono text-[10.5px] text-ink-faint">{item.key}</p>
+                  <p className="mt-0.5 text-[10px] text-ink-faint">{item.label.toLowerCase()}</p>
                 </div>
                 <a
                   href={item.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1 text-[11px] text-ink-soft hover:text-ember"
+                  className="inline-flex shrink-0 items-center gap-1 text-[10px] text-ink-faint hover:text-ember"
                 >
-                  Get key <ArrowUpRight className="h-2.5 w-2.5" />
+                  get key <ArrowUpRight className="h-2.5 w-2.5" />
                 </a>
               </div>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-ink-soft">{item.purpose}</p>
+              <p className="mt-1 text-[10.5px] leading-relaxed text-ink-faint">{item.purpose}</p>
             </li>
           );
         })}
       </ul>
 
-      <div className="mt-6">
-        <p className="label-xs text-ink-faint">Optional overrides</p>
+      <div className="mt-5">
+        <p className="label-xs text-ink-faint">optional overrides</p>
         <dl className="mt-2 space-y-1.5 font-mono text-[10.5px] text-ink-soft">
           {[
             ["GROQ_PLANNER_MODEL", "openai/gpt-oss-120b"],
@@ -447,15 +447,13 @@ export function SetupSheet({
         </dl>
       </div>
 
-      <div className="mt-6 border-t border-line pt-4">
-        <p className="label-xs text-ink-faint">On Vercel</p>
-        <ol className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-ink-soft">
-          <li>1. Project → Settings → Environment Variables.</li>
-          <li>2. Add each key for Production, Preview, and Development.</li>
-          <li>3. Redeploy so the new values are picked up.</li>
-          <li className="text-ink-faint">
-            Local development: put the same keys in <span className="font-mono">.env.local</span>.
-          </li>
+      <div className="mt-5 border-t border-line pt-3">
+        <p className="label-xs text-ink-faint">on vercel</p>
+        <ol className="mt-2 space-y-1 font-mono text-[10.5px] leading-relaxed text-ink-faint">
+          <li>1. project → settings → environment variables</li>
+          <li>2. add each key for production, preview, development</li>
+          <li>3. redeploy so the values are picked up</li>
+          <li>local: put the same keys in .env.local</li>
         </ol>
       </div>
     </Sheet>

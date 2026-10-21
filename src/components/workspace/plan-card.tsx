@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Compass } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import type { Plan } from "@/lib/protocol";
 import { cn } from "@/lib/utils";
 
@@ -9,51 +9,51 @@ export function PlanCard({ plan }: { plan: Plan }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="overflow-hidden rounded-md border border-line bg-paper-2/50">
+    <div className="border border-line bg-paper-2/30 font-mono">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className="flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors hover:bg-paper-2"
+        className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-paper-2/60"
       >
-        <Compass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ember" strokeWidth={1.7} />
+        <span className="mt-px text-[9px] text-ember">◆</span>
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-[13px] font-medium">{plan.title}</span>
-            <span className="rounded border border-line bg-paper px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-ink-faint">
-              plan
-            </span>
+          <span className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-[11.5px] text-ink">{plan.title}</span>
+            <span className="text-[9px] uppercase tracking-[0.12em] text-ink-faint">plan</span>
           </span>
-          <span className="mt-1 block text-[12.5px] leading-relaxed text-ink-soft">{plan.concept}</span>
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-ink-soft">
+            {plan.concept}
+          </span>
         </span>
-        <ChevronDown
-          className={cn("mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-faint transition-transform", open && "rotate-180")}
+        <ChevronRight
+          className={cn(
+            "mt-0.5 h-3 w-3 shrink-0 text-ink-faint transition-transform",
+            open && "rotate-90",
+          )}
         />
       </button>
 
       {open && (
-        <div className="border-t border-line px-3.5 py-3">
+        <div className="border-t border-line px-2.5 py-2">
           {plan.artDirection && (
-            <dl className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-              {plan.artDirection.palette && <Detail label="Palette" value={plan.artDirection.palette} />}
-              {plan.artDirection.typography && <Detail label="Type" value={plan.artDirection.typography} />}
-              {plan.artDirection.layout && <Detail label="Layout" value={plan.artDirection.layout} />}
-              {plan.artDirection.motion && <Detail label="Motion" value={plan.artDirection.motion} />}
+            <dl className="grid grid-cols-[64px_1fr] gap-x-2 gap-y-1 text-[10.5px]">
+              {plan.artDirection.palette && <Detail label="palette" value={plan.artDirection.palette} />}
+              {plan.artDirection.typography && <Detail label="type" value={plan.artDirection.typography} />}
+              {plan.artDirection.layout && <Detail label="layout" value={plan.artDirection.layout} />}
+              {plan.artDirection.motion && <Detail label="motion" value={plan.artDirection.motion} />}
             </dl>
           )}
 
           {plan.buildSteps && plan.buildSteps.length > 0 && (
-            <div className="mt-4">
-              <p className="label-xs text-ink-faint">Steps</p>
-              <ol className="mt-2 space-y-1.5">
+            <div className="mt-3">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-ink-faint">steps</p>
+              <ol className="mt-1 space-y-0.5">
                 {plan.buildSteps.map((step, index) => (
-                  <li key={`${step.title}-${index}`} className="flex gap-2.5 text-[12.5px]">
-                    <span className="mt-px font-mono text-[10px] text-ink-faint">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span>
-                      <span className="font-medium text-ink">{step.title}</span>
-                      <span className="text-ink-soft"> — {step.detail}</span>
+                  <li key={`${step.title}-${index}`} className="flex gap-2 text-[10.5px] leading-relaxed">
+                    <span className="text-ink-faint">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="text-ink-soft">
+                      <span className="text-ink">{step.title}</span> — {step.detail}
                     </span>
                   </li>
                 ))}
@@ -62,15 +62,11 @@ export function PlanCard({ plan }: { plan: Plan }) {
           )}
 
           {plan.files && plan.files.length > 0 && (
-            <div className="mt-4">
-              <p className="label-xs text-ink-faint">Files</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-3">
+              <p className="text-[9px] uppercase tracking-[0.12em] text-ink-faint">files</p>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                 {plan.files.map((file) => (
-                  <span
-                    key={file.path}
-                    title={file.purpose}
-                    className="rounded border border-line bg-paper px-1.5 py-0.5 font-mono text-[10px] text-ink-soft"
-                  >
+                  <span key={file.path} title={file.purpose} className="text-[10.5px] text-ink-soft">
                     {file.path}
                   </span>
                 ))}
@@ -85,9 +81,9 @@ export function PlanCard({ plan }: { plan: Plan }) {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <dt className="font-mono text-[9px] uppercase tracking-wider text-ink-faint">{label}</dt>
-      <dd className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">{value}</dd>
-    </div>
+    <>
+      <dt className="text-ink-faint">{label}</dt>
+      <dd className="leading-relaxed text-ink-soft">{value}</dd>
+    </>
   );
 }

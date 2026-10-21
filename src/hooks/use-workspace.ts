@@ -790,14 +790,14 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       builder: capabilities?.google ? "gemini" : capabilities?.groq ? "groq" : "puter",
       title: slugTitle(prompt),
     });
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap the prompt handed over from the landing page
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap the prompt handed over in the URL
     setProjects((prev) => [project, ...prev]);
     setActiveId(project.id);
     const userMessage = newMessage("user", prompt);
     const withUser: Project = { ...project, messages: [userMessage] };
     setProjects((prev) => prev.map((item) => (item.id === project.id ? withUser : item)));
     // Drop the handoff query so a refresh does not start a duplicate build.
-    window.history.replaceState({}, "", "/build");
+    window.history.replaceState({}, "", "/");
     void runAgent(withUser, prompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, capsLoaded]);

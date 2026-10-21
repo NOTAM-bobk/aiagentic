@@ -1,7 +1,8 @@
 # Kiln
 
-An agentic website studio. You describe a site in plain words; an agent plans it, searches the
-web when it needs facts, writes real HTML/CSS/JS, and serves the result in a sandbox you can watch.
+A terminal for building websites. You describe a site in the prompt line; an agent plans it,
+searches the web when it needs facts, writes real HTML/CSS/JS, and serves the result in a sandbox
+you can watch. There is no marketing page — the workspace is the whole app at `/`.
 
 Hosted on Vercel. Built with Next.js 16, React 19, Tailwind CSS 4, and the Vercel AI SDK.
 
@@ -14,12 +15,13 @@ Hosted on Vercel. Built with Next.js 16, React 19, Tailwind CSS 4, and the Verce
    - Daytona (sandbox + preview URL) — [app.daytona.io/dashboard/keys](https://app.daytona.io/dashboard/keys)
    - Composio (GitHub, Supabase, Cloudflare, Vercel) — [app.composio.dev/developers](https://app.composio.dev/developers)
 2. **Run it locally.** `bun install`, copy the variable names below into `.env.local`, `bun run dev`,
-   open <http://localhost:3000>.
+   open <http://localhost:3000> — that is the builder.
 3. **Push to GitHub**, import at [vercel.com/new](https://vercel.com/new), add the same variables in
    **Settings → Environment Variables** for Production, Preview, and Development, then deploy.
 4. **Create Composio auth configs** for each toolkit you want, then use **Connectors → Connect** in
    the workspace. Without this, connectors have nothing to OAuth against.
-5. **Sign in to Puter once** in the browser if you want the free, key-less builder.
+5. **Sign in to Puter** with the `puter sign in` button in the workspace header if you want the
+   free, key-less builder. It shows your `@username` once you are signed in; click it again to sign out.
 
 Only `GROQ_API_KEY` and `GOOGLE_GENERATIVE_AI_API_KEY` are needed for cloud builds. Without them the
 app still runs, but builds happen in Browser mode with Puter.
@@ -53,7 +55,10 @@ bun install
 bun run dev
 ```
 
-Open `http://localhost:3000`, then `/build`.
+Open `http://localhost:3000`. The workspace loads at `/`; the old `/build` path redirects there.
+
+There is no starter-prompt gallery: type what you want into the `❯` prompt line and press Enter.
+Builder model, Puter model, and cloud/browser mode sit in the prompt's bottom bar.
 
 ## Environment variables on Vercel
 
@@ -82,7 +87,7 @@ You do **not** need a database, auth provider, or object storage. Projects are s
 3. Add the variables above for **Production, Preview, and Development**, then deploy.
 4. Open `/api/health` on the deployment. It lists the capabilities it sees, so a missing key shows up
    as `false` instead of a mysterious failure later.
-5. Sign in to Puter once in the browser if you use the key-less builder.
+5. Sign in to Puter from the header button if you use the key-less builder.
 
 Notes:
 
@@ -94,8 +99,8 @@ Notes:
 
 ## Notes and limits
 
-- Puter.js requires a one-time sign-in on first use. Models and pricing are controlled by Puter's
-  user-pays model; the builder is selected in the composer.
+- Puter.js loads on the client and the header button signs you in once. Models and pricing are
+  controlled by Puter's user-pays model; the builder is selected in the composer.
 - Composio connections need an auth config per toolkit. Create it in the Composio dashboard first,
   then use **Connectors → Connect**. The OAuth callback returns to the workspace.
 - Preview URLs from Daytona are signed and expire after six hours; press reload to mint a fresh one.
@@ -104,8 +109,8 @@ Notes:
 ## Project layout
 
 ```
-src/app/            landing page, /build workspace, API routes
-src/components/     landing sections, workspace panels, sheets
+src/app/            / workspace, /build redirect, API routes
+src/components/     workspace panels, sheets, Puter account button
 src/hooks/          useWorkspace: agent loop, artifacts, persistence
-src/lib/            prompts, protocol parser, models, Daytona, Tavily, Composio
+src/lib/            prompts, protocol parser, models, Puter, Daytona, Tavily, Composio
 ```

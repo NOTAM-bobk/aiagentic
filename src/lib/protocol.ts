@@ -144,9 +144,3 @@ export function filePathsFromRaw(raw: string): string[] {
   return [...raw.matchAll(/<file\s+path\s*=\s*"([^"]+)"/gi)].map((match) => match[1]);
 }
 
-export const STARTER_PROMPTS = [
-  "A portfolio for a ceramicist in Oaxaca, warm and tactile, with a gallery and workshop dates.",
-  "Landing page for a small batch coffee roaster. Editorial type, subscription CTA, tasting notes.",
-  "A one-page site for a mountain cabin rental. Big photography, booking CTA, seasonal rates.",
-  "Docs-style homepage for an open source tool that turns SQL into charts.",
-];
