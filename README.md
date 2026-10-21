@@ -67,20 +67,30 @@ Development, then redeploy.
 | `TAVILY_API_KEY` | Optional | [app.tavily.com](https://app.tavily.com) | Live web search during builds |
 | `DAYTONA_API_KEY` | Optional | [app.daytona.io](https://app.daytona.io/dashboard/keys) | Sandboxes, commands, signed previews |
 | `COMPOSIO_API_KEY` | Optional | [app.composio.dev](https://app.composio.dev/developers) | GitHub / Supabase / Cloudflare / Vercel connectors |
+| `NEXT_PUBLIC_SITE_URL` | Optional | your domain | Canonical and Open Graph URLs (Vercel's hostname is used if unset) |
 
 Optional overrides: `GROQ_PLANNER_MODEL`, `GOOGLE_BUILDER_MODEL`, `GROQ_BUILDER_MODEL`,
 `DAYTONA_API_URL`, `DAYTONA_TARGET`.
 
 You do **not** need a database, auth provider, or object storage. Projects are stored per browser.
 
-## Deploying
+## Deploying to Vercel
 
 1. Push this repository to GitHub and import it at [vercel.com/new](https://vercel.com/new).
-2. Framework preset: Next.js. Build command `next build`, output `.next`.
-3. Add the env vars above, then deploy.
+2. Framework preset **Next.js** is detected. Keep build command `next build` and output `.next`;
+   `bun.lock` is committed, so Vercel installs with Bun.
+3. Add the variables above for **Production, Preview, and Development**, then deploy.
+4. Open `/api/health` on the deployment. It lists the capabilities it sees, so a missing key shows up
+   as `false` instead of a mysterious failure later.
+5. Sign in to Puter once in the browser if you use the key-less builder.
 
-Vercel functions run the API routes. `maxDuration = 60` is set on streaming routes; on Vercel Pro
-you can raise it to 300 if you want longer single-shot builds.
+Notes:
+
+- API routes run on the Node.js runtime. `maxDuration = 60` is set on the model and sandbox routes
+  (the Vercel Hobby ceiling); raise it to 300 on Pro for longer single-shot builds.
+- No database, auth provider, or storage bucket is needed. Projects live in the visitor's browser.
+- Daytona preview URLs are signed and expire after six hours; the workspace mints a fresh one on reload.
+- The build is self-contained: no `vercel.json`, custom output directory, or extra build step.
 
 ## Notes and limits
 
