@@ -12,6 +12,8 @@ import {
   X,
 } from "lucide-react";
 import type { Capabilities } from "@/lib/models";
+import { API_KEY_FIELDS, type ApiKeyMap } from "@/lib/keys";
+import { readKeys, saveKeys } from "@/lib/keys-client";
 import { cn } from "@/lib/utils";
 import { getUserId } from "@/hooks/use-workspace";
 
@@ -342,43 +344,10 @@ export function IntegrationsSheet({
   );
 }
 
-const ENV_VARS: { key: string; label: string; purpose: string; href: string; capability?: keyof Capabilities }[] = [
-  {
-    key: "GROQ_API_KEY",
-    label: "Groq",
-    purpose: "Thinking and planning",
-    href: "https://console.groq.com/keys",
-    capability: "groq",
-  },
-  {
-    key: "GOOGLE_GENERATIVE_AI_API_KEY",
-    label: "Google AI Studio",
-    purpose: "Building the site",
-    href: "https://aistudio.google.com/apikey",
-    capability: "google",
-  },
-  {
-    key: "TAVILY_API_KEY",
-    label: "Tavily",
-    purpose: "Web search",
-    href: "https://app.tavily.com/home",
-    capability: "tavily",
-  },
-  {
-    key: "DAYTONA_API_KEY",
-    label: "Daytona",
-    purpose: "Cloud sandbox + previews",
-    href: "https://app.daytona.io/dashboard/keys",
-    capability: "daytona",
-  },
-  {
-    key: "COMPOSIO_API_KEY",
-    label: "Composio",
-    purpose: "GitHub, Supabase, Cloudflare",
-    href: "https://app.composio.dev/developers",
-    capability: "composio",
-  },
-];
+const KEY_ROWS = API_KEY_FIELDS.map((field) => ({
+  ...field,
+  capability: (field.id === "github" ? null : field.id) as keyof Capabilities | null,
+}));
 
 export function SetupSheet({
   open,
@@ -392,44 +361,90 @@ export function SetupSheet({
   onRecheck: () => void;
 }) {
   const [checking, setChecking] = useState(false);
-  const missing = ENV_VARS.filter((item) => item.capability && !capabilities?.[item.capability]).length;
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    // Keys live in localStorage, so the inputs reload from storage each time the sheet opens.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (open) setDrafts(readKeys());
+  }, [open]);
+
+  const missing = KEY_ROWS.filter((item) => item.capability && !capabilities?.[item.capability]).length;
+  const stored = KEY_ROWS.filter((item) => Boolean(drafts[item.id]?.trim())).length;
+
+  function persist() {
+    saveKeys(drafts as ApiKeyMap);
+    setSaved(true);
+    onRecheck();
+    window.setTimeout(() => setSaved(false), 2000);
+  }
 
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title="setup"
-      subtitle="server-side keys"
-    >
+    <Sheet open={open} onClose={onClose} title="setup" subtitle="your api keys">
       <div className="border border-line bg-paper-2/40 px-3 py-3 font-mono">
         <p className="text-[12.5px] leading-relaxed text-ink-soft">
-          {missing === 0 ? "all set" : `${missing} key${missing === 1 ? "" : "s"} missing`}
+          {missing === 0
+            ? "all providers ready"
+            : `${missing} provider${missing === 1 ? "" : "s"} not connected`}
         </p>
-        <button
-          type="button"
-          onClick={() => {
-            setChecking(true);
-            onRecheck();
-            window.setTimeout(() => setChecking(false), 900);
-          }}
-          className="mt-2 inline-flex min-h-8 items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ember hover:underline"
-        >
-          <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} /> recheck
-        </button>
+        <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">
+          {stored > 0
+            ? `${stored} key${stored === 1 ? "" : "s"} saved in this browser`
+            : "paste a key below to turn on that provider"}
+        </p>
+        <div className="mt-2.5 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={persist}
+            className="inline-flex min-h-8 items-center gap-1.5 border border-line px-2.5 font-mono text-[10.5px] uppercase tracking-wider text-ink transition-all hover:-translate-y-px hover:border-ember/60 hover:text-ember"
+          >
+            {saved ? <Check className="h-3 w-3 text-ember" /> : <KeyRound className="h-3 w-3" />}
+            {saved ? "saved" : "save keys"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setChecking(true);
+              onRecheck();
+              window.setTimeout(() => setChecking(false), 900);
+            }}
+            className="inline-flex min-h-8 items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint transition-colors hover:text-ember"
+          >
+            <RefreshCw className={cn("h-3 w-3", checking && "animate-spin")} /> recheck
+          </button>
+          {stored > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setDrafts({});
+                saveKeys({});
+                onRecheck();
+              }}
+              className="inline-flex min-h-8 items-center gap-1 font-mono text-[10.5px] uppercase tracking-wider text-ink-faint transition-colors hover:text-red-400"
+            >
+              <X className="h-3 w-3" /> clear
+            </button>
+          )}
+        </div>
       </div>
+      <p className="mt-2 font-mono text-[10.5px] leading-relaxed text-ink-faint">
+        keys stay in this browser and are sent only to this app&apos;s own API routes. server env vars still work as a
+        fallback.
+      </p>
 
       <ul className="mt-4 divide-y divide-line border-y border-line">
-        {ENV_VARS.map((item) => {
-          const ready = item.capability ? Boolean(capabilities?.[item.capability]) : false;
+        {KEY_ROWS.map((item) => {
+          const ready = Boolean(drafts[item.id]?.trim()) || (item.capability ? Boolean(capabilities?.[item.capability]) : false);
           return (
-            <li key={item.key} className="px-1 py-2.5 font-mono">
+            <li key={item.id} className="px-1 py-2.5 font-mono">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-[12.5px] text-ink">
                     <span
                       className={cn("h-1 w-1 rounded-full", ready ? "bg-ember" : "bg-line-strong")}
                     />
-                    <span className={ready ? "text-ink" : "text-ink-soft"}>{item.key}</span>
+                    <span className={ready ? "text-ink" : "text-ink-soft"}>{item.env}</span>
                   </p>
                   <p className="mt-1 text-[11px] text-ink-faint">{item.label.toLowerCase()}</p>
                 </div>
@@ -443,6 +458,29 @@ export function SetupSheet({
                 </a>
               </div>
               <p className="mt-1 text-[11.5px] leading-relaxed text-ink-faint">{item.purpose}</p>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <input
+                  type="password"
+                  value={drafts[item.id] ?? ""}
+                  onChange={(event) =>
+                    setDrafts((prev) => ({ ...prev, [item.id]: event.target.value }))
+                  }
+                  placeholder={`paste ${item.env}`}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="min-h-8 w-full min-w-0 border border-line bg-paper px-2 text-[11px] text-ink transition-colors placeholder:text-ink-faint/70 focus:border-ember/60 focus:outline-none"
+                />
+                {drafts[item.id] ? (
+                  <button
+                    type="button"
+                    aria-label={`Clear ${item.label} key`}
+                    onClick={() => setDrafts((prev) => ({ ...prev, [item.id]: "" }))}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-line text-ink-faint transition-colors hover:border-ember/60 hover:text-ember"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </div>
             </li>
           );
         })}

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
-import { google } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { BUILDER_MODEL, GROQ_BUILDER_MODEL } from "@/lib/models";
+import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 import { TITLE_PROMPT } from "@/lib/prompts";
 import { truncate } from "@/lib/utils";
 
@@ -28,14 +29,20 @@ function clean(value: string): string | null {
 }
 
 export async function POST(request: Request) {
+  return withApiKeys(requestApiKeys(request), () => run(request));
+}
+
+async function run(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Body;
   const prompt = (body.request ?? "").trim();
   if (!prompt) return NextResponse.json({ title: null });
 
-  const model = process.env.GROQ_API_KEY
-    ? groq(GROQ_BUILDER_MODEL)
-    : process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY
-      ? google(BUILDER_MODEL)
+  const groqKey = apiKey("groq");
+  const googleKey = apiKey("google") ?? process.env.GOOGLE_API_KEY;
+  const model = groqKey
+    ? createGroq({ apiKey: groqKey })(GROQ_BUILDER_MODEL)
+    : googleKey
+      ? createGoogleGenerativeAI({ apiKey: googleKey })(BUILDER_MODEL)
       : null;
 
   if (!model) return NextResponse.json({ title: null, reason: "no_model" });

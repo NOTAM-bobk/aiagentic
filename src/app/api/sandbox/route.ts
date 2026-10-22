@@ -13,6 +13,7 @@ import {
   writeFiles,
 } from "@/lib/daytona";
 import { sanitizePath } from "@/lib/protocol";
+import { mergeApiKeys, withApiKeys } from "@/lib/keys-server";
 
 export const maxDuration = 60;
 
@@ -34,16 +35,22 @@ type Body = {
   command?: string;
   runCommand?: string;
   timeout?: number;
+  /** Included by sendBeacon callers, which cannot set request headers. */
+  keys?: Record<string, string>;
 };
 
 export async function POST(request: Request) {
+  const body = (await request.json().catch(() => ({}))) as Body;
+  return withApiKeys(mergeApiKeys(request, body.keys), () => run(body));
+}
+
+async function run(body: Body) {
   try {
-    const body = (await request.json().catch(() => ({}))) as Body;
     const action = body.action;
 
     if (!hasDaytona()) {
       return fail(
-        "Daytona is not configured. Add DAYTONA_API_KEY in Vercel, or use Browser mode.",
+        "Daytona is not configured. Add a Daytona key in Setup (or DAYTONA_API_KEY in the server env), or use Browser mode.",
         503,
         "daytona_missing",
       );

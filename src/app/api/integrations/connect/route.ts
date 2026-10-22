@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { fail, handleError } from "@/lib/http";
 import { createConnectionLink } from "@/lib/composio";
+import { requestApiKeys, withApiKeys } from "@/lib/keys-server";
 
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  return withApiKeys(requestApiKeys(request), () => run(request));
+}
+
+async function run(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       toolkit?: string;

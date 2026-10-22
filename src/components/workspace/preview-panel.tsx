@@ -120,12 +120,12 @@ function PreviewTab({
   const hasFiles = (project?.files.length ?? 0) > 0;
 
   if (!project || !hasFiles) {
-    return <EmptyPanel title="no site yet" lines={["it renders here after the first build."]} />;
+    return <SkeletonPanel title="no site yet" lines={["it renders here after the first build."]} />;
   }
 
   if (!cloudUrl && !cloud && project.files.some((file) => file.path === "package.json")) {
     return (
-      <EmptyPanel
+      <SkeletonPanel
         title="needs a runtime"
         lines={[
           "this project installs and builds to run.",
@@ -148,7 +148,7 @@ function PreviewTab({
 
   if (cloud && !cloudUrl) {
     return (
-      <EmptyPanel
+      <SkeletonPanel
         title="not running"
         lines={["the machine is parked to save usage.", "starting wakes it with your files intact."]}
         action={
@@ -225,8 +225,9 @@ function PreviewTab({
 
       <div className="min-h-0 flex-1 overflow-auto bg-night p-2.5">
         <div
+          key={`frame-${cloudUrl ?? "local"}-${nonce}`}
           className={cn(
-            "mx-auto h-full overflow-hidden border border-line bg-white transition-[max-width]",
+            "mx-auto h-full animate-fade-up overflow-hidden border border-line bg-white transition-[max-width] duration-300",
             device === "phone" ? "max-w-[390px]" : "max-w-none",
           )}
         >
@@ -359,6 +360,71 @@ function ActivityTab({ project }: { project: Project | null }) {
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PreviewSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="mx-auto flex h-full min-h-[380px] flex-col overflow-hidden border border-line bg-paper-2/30"
+    >
+      <div className="flex items-center gap-1.5 border-b border-line px-3 py-2">
+        <span className="skeleton-dot h-1.5 w-1.5 rounded-full" />
+        <span className="skeleton-dot h-1.5 w-1.5 rounded-full" style={{ animationDelay: "120ms" }} />
+        <span className="skeleton-dot h-1.5 w-1.5 rounded-full" style={{ animationDelay: "240ms" }} />
+        <span className="skeleton-bar ml-2 h-2.5 w-24" />
+        <span className="skeleton-bar ml-auto h-2.5 w-12" />
+      </div>
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <span className="skeleton-bar h-2.5 w-16" />
+        <span className="skeleton-bar h-6 w-3/5" />
+        <span className="skeleton-bar h-2.5 w-11/12" />
+        <span className="skeleton-bar h-2.5 w-4/5" />
+        <div className="mt-1 flex gap-2">
+          <span className="skeleton-bar h-7 w-20" />
+          <span className="skeleton-bar h-7 w-14" />
+        </div>
+        <div className="mt-3 grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              className="skeleton-block min-h-16 border border-line/80"
+              style={{ animationDelay: `${index * 160}ms` }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonPanel({
+  title,
+  lines,
+  action,
+}: {
+  title: string;
+  lines: string[];
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="relative h-full overflow-hidden bg-night p-2.5">
+      <PreviewSkeleton />
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-paper/70 px-8 py-10 text-center font-mono animate-fade-up">
+        <p className="text-[13px] text-ink-soft">
+          <span className="text-ember">&gt;</span> {title}
+        </p>
+        <div className="space-y-1.5">
+          {lines.map((line) => (
+            <p key={line} className="max-w-xs text-[12.5px] leading-relaxed text-ink-faint">
+              {line}
+            </p>
+          ))}
+        </div>
+        {action && <div className="mt-2">{action}</div>}
       </div>
     </div>
   );

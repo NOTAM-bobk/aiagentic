@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { streamText, type ModelMessage } from "ai";
-import { groq } from "@ai-sdk/groq";
-import { google } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { BUILDER_MODEL, GROQ_BUILDER_MODEL } from "@/lib/models";
+import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 import { BUILDER_PROMPT, buildEditContext } from "@/lib/prompts";
 import type { Plan, ProjectFile } from "@/lib/protocol";
 import { truncate } from "@/lib/utils";
@@ -42,6 +43,10 @@ function compactFiles(files: ProjectFile[] = []): ProjectFile[] {
 }
 
 export async function POST(request: Request) {
+  return withApiKeys(requestApiKeys(request), () => run(request));
+}
+
+async function run(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Body;
   const prompt = (body.request ?? "").trim();
   const builder = body.builder ?? "gemini";
@@ -74,29 +79,31 @@ export async function POST(request: Request) {
 
   let model;
   if (builder === "groq") {
-    if (!process.env.GROQ_API_KEY) {
+    const key = apiKey("groq");
+    if (!key) {
       return NextResponse.json(
         {
           error:
-            "Groq is not configured. Add GROQ_API_KEY in Vercel → Settings → Environment Variables, or switch the builder to Puter (free).",
+            "Groq is not configured. Add a Groq key in Setup (or GROQ_API_KEY in the server env), or switch the builder to Puter (free).",
           code: "groq_missing",
         },
         { status: 503 },
       );
     }
-    model = groq(GROQ_BUILDER_MODEL);
+    model = createGroq({ apiKey: key })(GROQ_BUILDER_MODEL);
   } else {
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && !process.env.GOOGLE_API_KEY) {
+    const googleKey = apiKey("google") ?? process.env.GOOGLE_API_KEY;
+    if (!googleKey) {
       return NextResponse.json(
         {
           error:
-            "Google AI Studio is not configured. Add GOOGLE_GENERATIVE_AI_API_KEY in Vercel → Settings → Environment Variables, or switch the builder to Puter (free).",
+            "Google AI Studio is not configured. Add a Google key in Setup (or GOOGLE_GENERATIVE_AI_API_KEY in the server env), or switch the builder to Puter (free).",
           code: "google_missing",
         },
         { status: 503 },
       );
     }
-    model = google(BUILDER_MODEL);
+    model = createGoogleGenerativeAI({ apiKey: googleKey })(BUILDER_MODEL);
   }
 
   const result = streamText({

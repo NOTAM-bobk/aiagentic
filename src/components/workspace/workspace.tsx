@@ -184,7 +184,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
           <div
             className={cn(
-              "min-h-0 flex-1 border-line lg:border-l",
+              "min-h-0 flex-1 border-line lg:block lg:border-l",
               mobileView === "site" ? "block" : "hidden",
               !panelVisible && "lg:hidden",
             )}

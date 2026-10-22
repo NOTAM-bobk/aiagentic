@@ -62,7 +62,7 @@ function ToolRow({
   const connectName = tool.label.replace(/^Connect /, "");
 
   return (
-    <div className="font-mono">
+    <div className="animate-fade-up font-mono">
       <div className="flex items-center gap-2.5 py-1.5 text-[12px] leading-relaxed">
         <StatusGlyph status={tool.status} />
         <span className="shrink-0 text-[11px] uppercase tracking-[0.08em] text-ink-faint">

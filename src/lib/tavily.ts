@@ -1,14 +1,15 @@
 import { ApiError } from "./http";
+import { apiKey } from "./keys-server";
 
 export type SearchHit = { title: string; url: string; content: string };
 
 export type SearchResult = { query: string; answer?: string; hits: SearchHit[] };
 
 export async function tavilySearch(query: string, maxResults = 5): Promise<SearchResult> {
-  const key = process.env.TAVILY_API_KEY;
+  const key = apiKey("tavily");
   if (!key) {
     throw new ApiError(
-      "Web search needs TAVILY_API_KEY. Add it in Vercel → Settings → Environment Variables, or ask the model to work from its own knowledge.",
+      "Web search needs a Tavily key. Add TAVILY_API_KEY in Setup (or the server env), or ask the model to work from its own knowledge.",
       503,
       "tavily_missing",
     );

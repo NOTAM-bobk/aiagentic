@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Daytona, type Sandbox } from "@daytona/sdk";
 import { ApiError } from "./http";
+import { apiKey } from "./keys-server";
 import { truncate } from "./utils";
 
 const PREVIEW_PORT = 3000;
@@ -91,12 +92,12 @@ function tail(value: string, max = 2000): string {
 }
 
 export function hasDaytona() {
-  return Boolean(process.env.DAYTONA_API_KEY);
+  return Boolean(apiKey("daytona"));
 }
 
 function client() {
   return new Daytona({
-    apiKey: process.env.DAYTONA_API_KEY,
+    apiKey: apiKey("daytona"),
     apiUrl: process.env.DAYTONA_API_URL || undefined,
     target: process.env.DAYTONA_TARGET || undefined,
   });
@@ -105,7 +106,7 @@ function client() {
 function requireDaytona() {
   if (!hasDaytona()) {
     throw new ApiError(
-      "Cloud sandboxes need DAYTONA_API_KEY. Add it in Vercel, or switch the workspace to Browser mode.",
+      "Cloud sandboxes need a Daytona key. Add DAYTONA_API_KEY in Setup (or the server env), or switch the workspace to Browser mode.",
       503,
       "daytona_missing",
     );

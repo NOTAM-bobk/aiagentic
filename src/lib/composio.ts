@@ -1,4 +1,5 @@
 import { ApiError } from "./http";
+import { apiKey } from "./keys-server";
 
 const BASES = ["https://backend.composio.dev/api/v3.1", "https://backend.composio.dev/api/v3"];
 
@@ -27,10 +28,10 @@ export type Toolkit = {
 type Json = Record<string, unknown>;
 
 async function composioFetch(path: string, init?: RequestInit): Promise<Json> {
-  const key = process.env.COMPOSIO_API_KEY;
+  const key = apiKey("composio");
   if (!key) {
     throw new ApiError(
-      "Connectors need COMPOSIO_API_KEY. Add it in Vercel → Settings → Environment Variables to link GitHub, Supabase, Cloudflare and more.",
+      "Connectors need a Composio key. Add COMPOSIO_API_KEY in Setup (or the server env) to link GitHub, Supabase, Cloudflare and more.",
       503,
       "composio_missing",
     );

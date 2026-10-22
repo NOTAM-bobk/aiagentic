@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { fail, handleError } from "@/lib/http";
 import { hasGitHub, pushProject } from "@/lib/github";
 import { sanitizePath } from "@/lib/protocol";
+import { requestApiKeys, withApiKeys } from "@/lib/keys-server";
 
 export const maxDuration = 60;
 
@@ -13,11 +14,17 @@ type Body = {
   isPrivate?: boolean;
 };
 
-export async function GET() {
-  return NextResponse.json({ configured: hasGitHub() });
+export async function GET(request: Request) {
+  return withApiKeys(requestApiKeys(request), () =>
+    NextResponse.json({ configured: hasGitHub() }),
+  );
 }
 
 export async function POST(request: Request) {
+  return withApiKeys(requestApiKeys(request), () => run(request));
+}
+
+async function run(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as Body;
     const files = (body.files ?? [])

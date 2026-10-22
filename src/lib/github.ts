@@ -1,10 +1,11 @@
 import { Octokit } from "octokit";
 import { ApiError } from "./http";
+import { apiKey } from "./keys-server";
 
 const TOKEN_PARTS = ["GITHUB_API_TOKEN", "GITHUB_PERSONAL_ACCESS_TOKEN"] as const;
 
 function token(): string | undefined {
-  const direct = process.env.GITHUB_TOKEN ?? process.env.GITHUB_API_TOKEN ?? process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+  const direct = apiKey("github") ?? process.env.GITHUB_API_TOKEN ?? process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
   if (direct) return direct;
   // Some environments prefix secrets by hand; tolerate a stray space.
   for (const key of TOKEN_PARTS) {
@@ -62,7 +63,7 @@ export async function pushProject(input: {
   const auth = token();
   if (!auth) {
     throw new ApiError(
-      "Git push needs a GitHub token. Add GITHUB_TOKEN in Settings → Environment, or connect GitHub in Connectors and let the agent use a connector action.",
+      "Git push needs a GitHub token. Add GITHUB_TOKEN in Setup (or the server env), or connect GitHub in Connectors and let the agent use a connector action.",
       503,
       "github_missing",
     );

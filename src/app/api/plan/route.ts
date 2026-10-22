@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { createGroq } from "@ai-sdk/groq";
 import { PLANNER_MODEL } from "@/lib/models";
+import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 import { PLANNER_PROMPT } from "@/lib/prompts";
 import type { Plan } from "@/lib/protocol";
 import { truncate } from "@/lib/utils";
@@ -61,12 +62,17 @@ function readDecision(text: string): Decision {
 }
 
 export async function POST(request: Request) {
+  return withApiKeys(requestApiKeys(request), () => run(request));
+}
+
+async function run(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Body;
   const prompt = (body.request ?? "").trim();
   if (!prompt) return NextResponse.json({ error: "Say something first." }, { status: 400 });
 
   // No planner key: hand the turn to the builder, which decides for itself.
-  if (!process.env.GROQ_API_KEY) {
+  const key = apiKey("groq");
+  if (!key) {
     return NextResponse.json({ action: "auto", source: "fallback" });
   }
 
@@ -79,7 +85,7 @@ export async function POST(request: Request) {
 
   try {
     const { text } = await generateText({
-      model: groq(PLANNER_MODEL),
+      model: createGroq({ apiKey: key })(PLANNER_MODEL),
       system: PLANNER_PROMPT,
       prompt: [
         history ? `Conversation so far:\n${history}` : "This is the first message.",

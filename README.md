@@ -95,6 +95,12 @@ bun run dev
 
 Open `http://localhost:3000`. The workspace loads at `/`; the old `/build` path redirects there.
 
+Keys can also be entered per browser in **Setup** (`key` icon in the chat header) instead of the
+server env. Saved keys live in `localStorage` and are sent as an `x-kiln-keys` header on same-origin
+API calls; each route resolves them per request and falls back to the server env when absent. This
+is what makes a deployment without env vars usable — paste your own Groq, Gemini, Tavily, Daytona,
+Composio, or GitHub token and the agent uses it immediately.
+
 There is no starter-prompt gallery: type what you want into the `❯` prompt line and press Enter.
 Builder model, Puter model, and cloud/browser mode sit in the prompt's bottom bar.
 

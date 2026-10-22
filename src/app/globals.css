@@ -143,6 +143,55 @@ body {
   animation: kiln-pulse 1.4s ease-in-out infinite;
 }
 
+@keyframes kiln-shimmer {
+  from {
+    background-position: 140% 0;
+  }
+  to {
+    background-position: -40% 0;
+  }
+}
+
+@keyframes kiln-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateY(-2px);
+    opacity: 0.85;
+  }
+}
+
+.skeleton-bar,
+.skeleton-block {
+  display: block;
+  background-image: linear-gradient(
+    90deg,
+    var(--paper-3) 0%,
+    var(--line-strong) 45%,
+    var(--paper-3) 100%
+  );
+  background-size: 220% 100%;
+  animation: kiln-shimmer 2.4s linear infinite;
+}
+
+.skeleton-bar {
+  border-radius: 2px;
+}
+
+.skeleton-block {
+  animation:
+    kiln-shimmer 3.2s linear infinite,
+    kiln-drift 3.6s ease-in-out infinite;
+}
+
+.skeleton-dot {
+  background: var(--line-strong);
+  animation: kiln-pulse 1.8s ease-in-out infinite;
+}
+
 .caret::after {
   content: "";
   display: inline-block;

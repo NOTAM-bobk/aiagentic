@@ -1,3 +1,5 @@
+import { apiKey } from "./keys-server";
+
 export type BuilderId = "gemini" | "groq" | "puter";
 export type PlannerId = "groq";
 
@@ -69,11 +71,11 @@ export type Capabilities = {
 
 export function readCapabilities(): Capabilities {
   return {
-    groq: Boolean(process.env.GROQ_API_KEY),
-    google: Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_API_KEY),
-    tavily: Boolean(process.env.TAVILY_API_KEY),
-    daytona: Boolean(process.env.DAYTONA_API_KEY),
-    composio: Boolean(process.env.COMPOSIO_API_KEY),
+    groq: Boolean(apiKey("groq")),
+    google: Boolean(apiKey("google") ?? process.env.GOOGLE_API_KEY),
+    tavily: Boolean(apiKey("tavily")),
+    daytona: Boolean(apiKey("daytona")),
+    composio: Boolean(apiKey("composio")),
     puter: true,
   };
 }

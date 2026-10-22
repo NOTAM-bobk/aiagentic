@@ -19,6 +19,7 @@ import { bootBrowserRunner, type BrowserRunnerApi } from "@/lib/webcontainer";
 import { slugTitle, truncate, uid } from "@/lib/utils";
 import type { Capabilities } from "@/lib/models";
 import { PUTER_MODELS } from "@/lib/puter-models";
+import { readKeys } from "@/lib/keys-client";
 
 const STORAGE_KEY = "kiln.workspace.v1";
 const MAX_ROUNDS = 4;
@@ -297,9 +298,14 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       if (raw) {
         const parsed = JSON.parse(raw) as Stored;
         if (Array.isArray(parsed.projects)) {
+          const restored = parsed.projects.map((project) => ({ ...project, messages: project.messages ?? [] }));
           // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-          setProjects(parsed.projects.map((project) => ({ ...project, messages: project.messages ?? [] })));
-          setActiveId(parsed.activeId ?? parsed.projects[0]?.id ?? null);
+          setProjects(restored);
+          // A stale active id would leave the preview pane with no project at all.
+          const validId = restored.some((project) => project.id === parsed.activeId)
+            ? parsed.activeId
+            : (restored[0]?.id ?? null);
+          setActiveId(validId);
         }
       }
     } catch {
@@ -407,7 +413,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         if (!project.sandboxId) continue;
         navigator.sendBeacon(
           "/api/sandbox",
-          JSON.stringify({ action: "stop", sandboxId: project.sandboxId }),
+          JSON.stringify({ action: "stop", sandboxId: project.sandboxId, keys: readKeys() }),
         );
       }
     };
