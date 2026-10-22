@@ -11,6 +11,8 @@ export type Plan = {
   };
   sections?: string[];
   files?: { path: string; purpose: string }[];
+  /** Photographs the plan wants the image model to make. */
+  images?: { path: string; prompt: string }[];
   buildSteps?: { title: string; detail: string }[];
   needsSearch?: boolean;
   searchQueries?: string[];
@@ -18,6 +20,7 @@ export type Plan = {
 };
 
 export type FileArtifact = { kind: "file"; path: string; content: string };
+export type ImageArtifact = { kind: "image"; path: string; prompt: string; alt: string };
 export type EditArtifact = { kind: "edit"; path: string; find: string; replace: string };
 export type SearchArtifact = { kind: "search"; query: string };
 export type ShellArtifact = { kind: "shell"; command: string };
@@ -40,6 +43,7 @@ export type GitArtifact = {
 
 export type Artifact =
   | FileArtifact
+  | ImageArtifact
   | EditArtifact
   | SearchArtifact
   | ShellArtifact
@@ -56,7 +60,21 @@ export type Artifact =
 
 export type ToolEvent = {
   id: string;
-  kind: "plan" | "search" | "write" | "edit" | "shell" | "test" | "run" | "connect" | "git" | "delete" | "sandbox";
+  kind:
+    | "plan"
+    | "search"
+    | "write"
+    | "edit"
+    | "shell"
+    | "test"
+    | "run"
+    | "connect"
+    | "git"
+    | "delete"
+    | "sandbox"
+    | "image"
+    | "verify"
+    | "review";
   label: string;
   detail?: string;
   status: "pending" | "running" | "ok" | "error";
@@ -65,6 +83,9 @@ export type ToolEvent = {
 };
 
 export type Question = { text: string; options: string[] };
+
+/** One line of the build checklist the agent keeps in step with. */
+export type Task = { id: string; title: string; status: "pending" | "done" };
 
 export type ChatMessage = {
   id: string;
@@ -79,10 +100,22 @@ export type ChatMessage = {
   thinking?: string;
   /** A question back to the user, with optional clickable answers. */
   question?: Question | null;
+  /** The agent's own task list for this turn, ticked as the work lands. */
+  tasks?: Task[];
   createdAt: number;
 };
 
 export type ProjectFile = { path: string; content: string };
+
+/** A generated image, kept out of the text files so previews and deploys stay real binaries. */
+export type ProjectImage = {
+  path: string;
+  alt: string;
+  prompt: string;
+  mime: string;
+  dataUrl: string;
+  at: number;
+};
 
 const RUNTIME_MANIFESTS = new Set(["package.json", "requirements.txt", "Cargo.toml", "go.mod", "Gemfile"]);
 
@@ -90,6 +123,9 @@ const RUNTIME_MANIFESTS = new Set(["package.json", "requirements.txt", "Cargo.to
 export function needsCloud(files: { path: string }[], runCommand?: string | null): boolean {
   return Boolean(runCommand) || files.some((file) => RUNTIME_MANIFESTS.has(file.path));
 }
+
+/** Plan mode only talks; build mode writes files and runs the project. */
+export type ChatMode = "plan" | "build";
 
 export type WorkspaceMode = "auto" | "cloud" | "local";
 /** The mode actually used for a turn: auto resolves to one of these. */
@@ -108,6 +144,10 @@ export type Project = {
   /** Model id for Puter builds. Empty means Puter's current default. */
   puterModel?: string;
   previewUrl?: string | null;
+  /** Plan mode reasons with the user; build mode edits the project. */
+  chatMode?: ChatMode;
+  /** Images the agent generated for this project, mounted alongside the files. */
+  images?: ProjectImage[];
   /** Where the last build ran: a cloud machine, the browser runtime, or nowhere. */
   engine?: "cloud" | "webcontainer" | null;
   /** Long-running server the agent asked for, e.g. `python3 app.py`. */
@@ -127,7 +167,7 @@ export type DeployRecord = {
 };
 
 const TAG =
-  /<\s*(file|edit|say|search|shell|test|connect|action|delete|done|think|ask|run|title|git)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
+  /<\s*(file|edit|say|search|shell|test|connect|action|delete|done|think|ask|run|title|git|image)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
 
 function attr(attrs: string, name: string): string {
   // Accept single or double quotes: models occasionally switch.
@@ -198,6 +238,11 @@ export function parseArtifacts(raw: string): Artifact[] {
     } else if (tag === "action") {
       const tool = attr(attrs, "tool").toUpperCase().replace(/[^A-Z0-9_]/g, "");
       if (tool) artifacts.push({ kind: "action", tool, args: body.trim() || "{}" });
+    } else if (tag === "image") {
+      const path = sanitizePath(attr(attrs, "path"));
+      const prompt = body.trim();
+      const alt = attr(attrs, "alt");
+      if (path && prompt) artifacts.push({ kind: "image", path, prompt, alt });
     } else if (tag === "delete") {
       const path = sanitizePath(attr(attrs, "path"));
       if (path) artifacts.push({ kind: "delete", path });
@@ -283,6 +328,89 @@ export function sanitizePath(value: string): string {
   const cleaned = value.replace(/\\/g, "/").replace(/^\/+/, "").replace(/^(\.\/)+/, "").replace(/\.\.(\/|$)/g, "");
   if (!cleaned || cleaned.endsWith("/")) return "";
   return cleaned.slice(0, 200);
+}
+
+/** Keep generated images inside the project with an extension a server can serve. */
+export function imagePath(value: string): string {
+  // Case is preserved: the file has to match the src the model writes, and
+  // Linux filesystems are case-sensitive.
+  const clean = sanitizePath(value)
+    .replace(/[^a-zA-Z0-9._/-]/g, "-")
+    .replace(/-{2,}/g, "-");
+  const base = clean || "image";
+  const withDir = base.includes("/") ? base : `assets/${base}`;
+  const last = withDir.split("/").pop() ?? "";
+  if (/\.(png|jpe?g|webp)$/i.test(last)) return withDir;
+  return `${withDir.replace(/\.(avif|gif|svg|bmp|tiff?)$/i, "")}.jpg`;
+}
+
+/**
+ * Merge the agent's task list from the response so far into the one on screen.
+ * `<tasks>` declares the checklist, `<task done>` ticks an item, and a bare
+ * `<task>` adds one. Titles match case-insensitively, so re-emitting the whole
+ * list on a later round never duplicates a line.
+ */
+export function mergeTasks(existing: Task[], raw: string): Task[] {
+  if (!/<\s*tasks?\b/i.test(raw)) return existing;
+  const tasks = existing.map((task) => ({ ...task }));
+  const find = (title: string) =>
+    tasks.find((task) => task.title.toLowerCase() === title.toLowerCase());
+  const add = (title: string, done: boolean) => {
+    if (!title || find(title) || tasks.length >= 14) return;
+    tasks.push({ id: `task_${tasks.length}`, title, status: done ? "done" : "pending" });
+  };
+  /** `<task done="2"/>`, `<task done>the title</task>`, or a bare `<task>title</task>`. */
+  const apply = (attrs: string, body: string) => {
+    const doneAttr = /\b(?:done|status)\b(?:\s*=\s*["']?([^"'\s/>]+)["']?)?/i.exec(attrs);
+    if (!doneAttr) {
+      add(body, false);
+      return;
+    }
+
+    const target = (doneAttr[1] ?? body).trim();
+    const index = Number(target);
+    if (Number.isInteger(index) && index >= 1 && index <= tasks.length) {
+      tasks[index - 1].status = "done";
+      return;
+    }
+    const named = /^(true|yes|done|complete|completed)$/i.test(target) ? body : target;
+    const found = find(named);
+    if (found) found.status = "done";
+  };
+
+  for (const block of raw.matchAll(/<\s*tasks\b[^>]*>([\s\S]*?)<\s*\/\s*tasks\s*>/gi)) {
+    for (const line of block[1].split("\n")) {
+      const match = /^\s*(?:[-*•]|\d+[.)])?\s*(?:\[([ xX])\]\s*)?(.+?)\s*$/.exec(line);
+      if (!match) continue;
+      const title = match[2].replace(/[`*_]/g, "").trim();
+      if (!title || /^<\/?\w/.test(title)) continue;
+      const done = (match[1] ?? "").toLowerCase() === "x";
+      const found = find(title);
+      if (found) {
+        if (done) found.status = "done";
+        continue;
+      }
+      add(title, done);
+    }
+  }
+
+  // Self-closing ticks are consumed first: left in place, their missing closing
+  // tag would swallow every block that follows them.
+  const source = raw.replace(/<\s*task\b([^>]*?)\/\s*>/gi, (_match, attrs: string) => {
+    apply(attrs ?? "", "");
+    return "";
+  });
+
+  for (const match of source.matchAll(/<\s*task\b([^>]*)>([\s\S]*?)<\s*\/\s*task\s*>/gi)) {
+    const body = match[2]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/[`*_]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    apply(match[1] ?? "", body);
+  }
+
+  return tasks;
 }
 
 /** Reasoning streamed so far, even before the closing tag arrives. */

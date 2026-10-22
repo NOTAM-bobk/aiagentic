@@ -102,7 +102,7 @@ export function DeploySheet({
       const response = await fetch("/api/deploy", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, files: project.files }),
+        body: JSON.stringify({ name, files: project.files, images: project.images ?? [] }),
       });
       const data = (await response.json()) as Report & { error?: string; code?: string };
       if (!response.ok) {

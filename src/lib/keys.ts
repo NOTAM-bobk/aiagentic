@@ -12,7 +12,7 @@ export const API_KEY_FIELDS = [
     id: "google",
     env: "GOOGLE_GENERATIVE_AI_API_KEY",
     label: "Google AI Studio",
-    purpose: "Building the site",
+    purpose: "Building the site and drawing images",
     href: "https://aistudio.google.com/apikey",
   },
   {

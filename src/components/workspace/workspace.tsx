@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { KilnMark } from "@/components/brand";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { bundleHtml, cn } from "@/lib/utils";
+import { bundleHtml, cn, inlineImages } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { PuterAccount } from "./puter-account";
 import { PreviewPanel, type PanelTab } from "./preview-panel";
@@ -95,7 +95,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
   const exportSite = useCallback(() => {
     if (!active || active.files.length === 0) return;
-    const html = bundleHtml(active.files);
+    const html = inlineImages(bundleHtml(active.files), active.images ?? []);
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -294,6 +294,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               onBuilder={workspace.setBuilder}
               onPuterModel={workspace.setPuterModel}
               onMode={workspace.setMode}
+              onChatMode={workspace.setChatMode}
               onToolkitConnected={workspace.noteConnection}
               onGitPush={workspace.pushToGitHub}
             />

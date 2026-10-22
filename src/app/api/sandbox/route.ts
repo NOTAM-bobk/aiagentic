@@ -31,6 +31,7 @@ type Body = {
     | "stop";
   sandboxId?: string;
   files?: { path: string; content: string }[];
+  images?: { path: string; base64: string }[];
   path?: string;
   command?: string;
   runCommand?: string;
@@ -70,9 +71,16 @@ async function run(body: Body) {
           .map((file) => ({ path: sanitizePath(file.path), content: String(file.content ?? "") }))
           .filter((file) => file.path && file.content.length <= 400_000)
           .slice(0, 60);
-        if (files.length === 0) return fail("No valid files to write.", 400);
-        await writeFiles(sandboxId, files);
-        return NextResponse.json({ written: files.map((file) => file.path) });
+        const images = (body.images ?? [])
+          .map((image) => ({
+            path: sanitizePath(image.path),
+            base64: String(image.base64 ?? "").replace(/[^A-Za-z0-9+/=]/g, ""),
+          }))
+          .filter((image) => image.path && image.base64.length > 0 && image.base64.length <= 2_600_000)
+          .slice(0, 6);
+        if (files.length === 0 && images.length === 0) return fail("No valid files to write.", 400);
+        await writeFiles(sandboxId, files, images);
+        return NextResponse.json({ written: [...files, ...images].map((file) => file.path) });
       }
       case "read": {
         const files = await readFiles(sandboxId);

@@ -4,7 +4,7 @@ import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { DEFAULT_GEMINI_MODEL, DEFAULT_GROQ_MODEL, resolveBuilder } from "@/lib/builders";
 import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
-import { BUILDER_PROMPT, buildEditContext } from "@/lib/prompts";
+import { BUILDER_PROMPT, PLAN_MODE_PROMPT, buildEditContext } from "@/lib/prompts";
 import type { Plan, ProjectFile } from "@/lib/protocol";
 import { truncate } from "@/lib/utils";
 import { sanitizeSkills } from "@/lib/skills";
@@ -21,6 +21,10 @@ type Body = {
   history?: { role: "user" | "assistant"; content: string }[];
   skills?: { name: string; body: string }[];
   actionTools?: { slug: string; description: string; params?: string[] }[];
+  /** Plan mode: reason with the user, change nothing. */
+  planMode?: boolean;
+  recentDirections?: string[];
+  images?: { path: string; alt?: string }[];
 };
 
 const MAX_FILE_CHARS = 14_000;
@@ -62,33 +66,64 @@ async function run(request: Request) {
     );
   }
 
+  const planMode = Boolean(body.planMode);
   const history: ModelMessage[] = (body.history ?? []).slice(-6).map((message) => ({
     role: message.role,
     content: truncate(digest(message.content), 700),
   }));
 
-  const context = buildEditContext({
-    plan: body.plan ?? null,
-    files: compactFiles(body.files),
-    observations: (body.observations ?? []).slice(-10).map((item) => item.slice(0, 3000)),
-    round: Math.max(1, Math.min(body.round ?? 1, 6)),
-    maxRounds: 6,
-    skills: sanitizeSkills(body.skills),
-    actionTools: Array.isArray(body.actionTools)
-      ? body.actionTools
-          .filter((tool) => tool && typeof tool.slug === "string")
-          .slice(0, 120)
-          .map((tool) => ({
-            slug: tool.slug.slice(0, 120),
-            description: String(tool.description ?? "").slice(0, 180),
-            params: Array.isArray(tool.params) ? tool.params.slice(0, 14).map(String) : [],
-          }))
-      : [],
-  });
+  // Plan mode reasons about the project without re-reading every byte of it.
+  const planContext = [
+    (body.files ?? []).length > 0
+      ? `The project currently contains: ${(body.files ?? [])
+          .map((file) => file.path)
+          .slice(0, 40)
+          .join(", ")}`
+      : "The workspace is empty.",
+    body.plan ? `The last plan: ${body.plan.title} — ${body.plan.concept}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const context = planMode
+    ? planContext
+    : buildEditContext({
+        plan: body.plan ?? null,
+        files: compactFiles(body.files),
+        observations: (body.observations ?? []).slice(-10).map((item) => item.slice(0, 3000)),
+        round: Math.max(1, Math.min(body.round ?? 1, 6)),
+        maxRounds: 6,
+        skills: sanitizeSkills(body.skills),
+        images: Array.isArray(body.images)
+          ? body.images
+              .filter((image) => image && typeof image.path === "string")
+              .slice(0, 8)
+              .map((image) => ({ path: image.path.slice(0, 200), alt: String(image.alt ?? "").slice(0, 200) }))
+          : [],
+        recentDirections: Array.isArray(body.recentDirections)
+          ? body.recentDirections
+              .filter((line): line is string => typeof line === "string")
+              .slice(0, 5)
+              .map((line) => line.slice(0, 220))
+          : [],
+        actionTools: Array.isArray(body.actionTools)
+          ? body.actionTools
+              .filter((tool) => tool && typeof tool.slug === "string")
+              .slice(0, 120)
+              .map((tool) => ({
+                slug: tool.slug.slice(0, 120),
+                description: String(tool.description ?? "").slice(0, 180),
+                params: Array.isArray(tool.params) ? tool.params.slice(0, 14).map(String) : [],
+              }))
+          : [],
+      });
 
   const messages: ModelMessage[] = [
     ...history,
-    { role: "user", content: `${context}\n\n# Request\n${prompt}` },
+    {
+      role: "user",
+      content: planMode ? `${context}\n\n# Message\n${prompt}` : `${context}\n\n# Request\n${prompt}`,
+    },
   ];
 
   let model;
@@ -131,10 +166,10 @@ async function run(request: Request) {
 
   const result = streamText({
     model,
-    system: BUILDER_PROMPT,
+    system: planMode ? PLAN_MODE_PROMPT : BUILDER_PROMPT,
     messages,
-    temperature: 0.8,
-    maxOutputTokens: 8192,
+    temperature: planMode ? 0.75 : 0.8,
+    maxOutputTokens: planMode ? 1600 : 8192,
     maxRetries: 1,
     onError: ({ error }) => console.error("[kiln] generate failed", error),
   });

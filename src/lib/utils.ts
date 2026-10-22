@@ -38,6 +38,29 @@ export function slugTitle(input: string): string {
     .join(" ");
 }
 
+/**
+ * Replace references to generated images with their data URLs. Used by the
+ * srcDoc preview and the single-file export, where relative paths have no
+ * filesystem to resolve against.
+ */
+export function inlineImages(
+  html: string,
+  images: { path: string; dataUrl: string }[] = [],
+): string {
+  if (images.length === 0) return html;
+  let output = html;
+  for (const image of images) {
+    const escaped = image.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    output = output.replace(
+      // src="…", url(…) and href='…' all point at the same generated file.
+      new RegExp(`(["'])${escaped}\\1|\\(${escaped}\\)`, "g"),
+      (_match, quote: string | undefined) =>
+        quote ? `${quote}${image.dataUrl}${quote}` : `(${image.dataUrl})`,
+    );
+  }
+  return output;
+}
+
 /** Inline local CSS/JS into a single HTML document so a browser-only project can preview itself. */
 export function bundleHtml(files: { path: string; content: string }[]): string {
   const index = files.find((file) => file.path === "index.html");

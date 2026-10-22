@@ -4,29 +4,42 @@ import { useEffect, useState } from "react";
 import type { FileSystemTree, WebContainer, WebContainerProcess } from "@webcontainer/api";
 
 type RuntimeFile = { path: string; content: string };
+type RuntimeAsset = { path: string; base64: string };
 
 type Request = {
   type: "request";
   id: string;
   method: "mount" | "install" | "build" | "dev" | "exec";
-  params?: { files?: RuntimeFile[]; command?: string };
+  params?: { files?: RuntimeFile[]; assets?: RuntimeAsset[]; command?: string };
 };
 
-function toTree(files: RuntimeFile[]): FileSystemTree {
+function bytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const output = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) output[index] = binary.charCodeAt(index);
+  return output;
+}
+
+function toTree(files: RuntimeFile[], assets: RuntimeAsset[] = []): FileSystemTree {
   const root: Record<string, unknown> = {};
-  for (const file of files) {
-    const parts = file.path.split("/").filter(Boolean);
+  const write = (path: string, contents: string | Uint8Array) => {
+    const parts = path.split("/").filter(Boolean);
+    if (parts.length === 0) return;
     let node = root;
     parts.forEach((part, index) => {
       if (index === parts.length - 1) {
-        node[part] = { file: { contents: file.content } };
+        node[part] = { file: { contents } };
         return;
       }
       const existing = node[part] as { directory?: Record<string, unknown> } | undefined;
       if (!existing?.directory) node[part] = { directory: {} };
       node = (node[part] as { directory: Record<string, unknown> }).directory;
     });
-  }
+  };
+
+  for (const file of files) write(file.path, file.content);
+  // Real binary files: an inlined data URL would bloat every later read.
+  for (const asset of assets) write(asset.path, bytes(asset.base64));
   return root as unknown as FileSystemTree;
 }
 
@@ -129,8 +142,9 @@ export default function RunnerPage() {
         if (data.method === "mount") {
           if (!instance) throw new Error("The browser runtime is still starting.");
           const files = data.params?.files ?? [];
-          await instance.mount(toTree(files));
-          result = { mounted: files.length };
+          const assets = data.params?.assets ?? [];
+          await instance.mount(toTree(files, assets));
+          result = { mounted: files.length + assets.length };
         } else if (data.method === "install") {
           result = await run("npm", ["install", "--no-audit", "--no-fund", "--loglevel=error"]);
         } else if (data.method === "build") {

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import type { Capabilities } from "@/lib/models";
-import type { Project, WorkspaceMode } from "@/lib/protocol";
+import type { ChatMode, Project, WorkspaceMode } from "@/lib/protocol";
 import { Composer } from "./composer";
 import { MessageItem } from "./message-item";
 
@@ -17,6 +17,7 @@ export function ChatPanel({
   onBuilder,
   onPuterModel,
   onMode,
+  onChatMode,
   onToolkitConnected,
   onGitPush,
 }: {
@@ -29,6 +30,7 @@ export function ChatPanel({
   onBuilder: (builder: string) => void;
   onPuterModel: (model: string) => void;
   onMode: (mode: WorkspaceMode) => void;
+  onChatMode: (mode: ChatMode) => void;
   onToolkitConnected: (projectId: string, messageId: string, name: string) => void;
   onGitPush: (
     projectId: string,
@@ -87,6 +89,7 @@ export function ChatPanel({
         builder={project?.builder ?? "puter"}
         puterModel={project?.puterModel ?? ""}
         mode={project?.mode ?? "local"}
+        chatMode={project?.chatMode ?? "build"}
         capabilities={capabilities}
         busy={busy}
         onSend={onSend}
@@ -94,6 +97,7 @@ export function ChatPanel({
         onBuilder={onBuilder}
         onPuterModel={onPuterModel}
         onMode={onMode}
+        onChatMode={onChatMode}
       />
     </section>
   );
@@ -107,8 +111,9 @@ function EmptyChat() {
         what are we making?
       </h1>
       <p className="mt-5 max-w-md text-[14.5px] leading-relaxed text-ink-soft">
-        Ask anything, or describe what you want built. It thinks first, answers or asks back, then
-        builds real apps you can run.
+        Ask anything, or describe what you want built. <span className="text-ink">plan</span> thinks
+        it through with you and writes nothing; <span className="text-ink">build</span> writes real
+        files and runs them. Switch modes in the prompt bar.
       </p>
     </div>
   );

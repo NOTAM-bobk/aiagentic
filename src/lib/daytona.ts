@@ -216,21 +216,25 @@ export async function stopSandbox(sandboxId: string): Promise<void> {
 export async function writeFiles(
   sandboxId: string,
   files: { path: string; content: string }[],
+  images: { path: string; base64: string }[] = [],
 ): Promise<void> {
-  if (files.length === 0) return;
+  if (files.length === 0 && images.length === 0) return;
   const sandbox = await getSandbox(sandboxId);
   const dirs = new Set<string>([PROJECT_DIR]);
-  for (const file of files) {
+  for (const file of [...files, ...images]) {
     const parts = file.path.split("/");
     parts.pop();
     if (parts.length) dirs.add([PROJECT_DIR, ...parts].join("/"));
   }
   await sandbox.process.executeCommand(`mkdir -p ${[...dirs].map((dir) => `'${dir}'`).join(" ")}`);
-  await Promise.all(
-    files.map((file) =>
+  await Promise.all([
+    ...files.map((file) =>
       sandbox.fs.uploadFile(Buffer.from(file.content, "utf8"), `${PROJECT_DIR}/${file.path}`),
     ),
-  );
+    ...images.map((image) =>
+      sandbox.fs.uploadFile(Buffer.from(image.base64, "base64"), `${PROJECT_DIR}/${image.path}`),
+    ),
+  ]);
 }
 
 export async function deleteFile(sandboxId: string, path: string): Promise<void> {
@@ -247,7 +251,9 @@ export async function readFiles(sandboxId: string): Promise<{ path: string; cont
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.startsWith(`${PROJECT_DIR}/`))
-    .map((line) => line.slice(PROJECT_DIR.length + 1));
+    .map((line) => line.slice(PROJECT_DIR.length + 1))
+    // Images live in the project's own store; reading them as UTF-8 would corrupt them.
+    .filter((path) => !/\.(png|jpe?g|webp|avif|gif|ico)$/i.test(path));
 
   const files = await Promise.all(
     paths.map(async (path) => {

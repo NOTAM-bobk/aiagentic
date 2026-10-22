@@ -12,7 +12,7 @@ Hosted on Vercel. Built with Next.js 16, React 19, Tailwind CSS 4, and the Verce
 
 1. **Get the keys.** All have free tiers:
    - Groq (planning) — [console.groq.com/keys](https://console.groq.com/keys)
-   - Google AI Studio (building) — [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   - Google AI Studio (building and image generation) — [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
    - Tavily (web search, 1,000 free/month) — [app.tavily.com](https://app.tavily.com)
    - Daytona (sandbox + preview URL) — [app.daytona.io/dashboard/keys](https://app.daytona.io/dashboard/keys)
    - Composio (GitHub, Supabase, Cloudflare, Vercel) — [app.composio.dev/developers](https://app.composio.dev/developers)
@@ -34,10 +34,12 @@ app still runs, but builds happen in Browser mode with Puter.
 prompt
   └─ decide      Groq · openai/gpt-oss-120b        → answer, ask with options, or plan a build
   └─ plan        only when building               → concept, stack, art direction, files
-  └─ build       Gemini 3.8 Flash (or Puter)       → <think>, <say>, <edit>, <file>, <shell>, <run>, <ask>
+  └─ build       Gemini 3.8 Flash (or Puter)       → <think>, <say>, <tasks>, <file>, <edit>, <image>
+  └─ draw        Gemini Nano Banana 2.1            → a real image file, shrunk in the browser
   └─ install     WebContainer · npm               → free browser runtime, no machine billed
   └─ bundle      WebContainer · npm run build     → dist/ served, or a dev server started
   └─ execute     Tavily · WebContainer · Composio  → results fed into the next round
+  └─ check       /api/verify + a second model     → live preview, then a critique to act on
   └─ git         isomorphic-git · Octokit        → clone a repo into files, or push on approval
   └─ preview     WebContainer URL / Daytona / srcDoc → the running app
   └─ name        Groq / Gemini                     → a short title for the conversation
@@ -75,10 +77,28 @@ re-mints the signed URL.
 
 The builder speaks a small XML protocol instead of native tool calling, so Gemini, Groq, and
 Puter models behave identically: ` thinking` for visible reasoning, `<ask>` for a question with
-options, `<edit>` for a find/replace change to an existing file, `<file>` for a complete file,
-`<shell>` for one-off commands, `<run>` for a long-running server, `<git>` for an approved GitHub
-push, and `<done>` for the closing summary. `src/lib/protocol.ts` parses it and applies edits (exact match, then a whitespace-tolerant
-line match); `src/lib/prompts.ts` defines the planner, builder, and title prompts.
+options, `<tasks>` for the checklist it ticks while working, `<edit>` for a find/replace change to
+an existing file, `<file>` for a complete file, `<image>` to have the image model draw a photograph
+for the project, `<shell>` for one-off commands, `<run>` for a long-running server, `<git>` for an
+approved GitHub push, and `<done>` for the closing summary. `src/lib/protocol.ts` parses it and
+applies edits (exact match, then a whitespace-tolerant line match); `src/lib/prompts.ts` defines
+the planner, builder, critic, plan-mode, and title prompts.
+
+Prompt and build are one control, not two apps. **Plan** talks: it reasons about the idea, the
+trade-offs, and the next screen, and writes nothing. **Build** writes files and runs the project.
+The switcher sits in the prompt bar, so a plan can become a build without leaving the conversation.
+
+Nothing is called finished on the first pass. Once the preview is live the workspace runs static
+and live checks (`/api/verify`), searches the web for current craft on this kind of site when
+Tavily is configured, and asks a *different* model than the builder for a critique. Those notes go
+back into the agent as results, and it gets one more round to fix and improve. It also receives the
+last four projects' palettes and type pairings so it stops reaching for the same world twice.
+
+Generated images are real files in the project, not data URLs pasted into HTML: the image route
+(`/api/image`, Gemini Nano Banana) returns base64, the browser downscales it, and the workspace
+mounts it as binary in WebContainers, uploads it to Daytona, and ships it to Vercel on deploy.
+Paths referenced as `assets/hero.jpg` are inlined only for the `srcDoc` preview and the single-file
+export, which have no filesystem to resolve against.
 
 Follow-ups edit instead of rewriting: the model quotes the current lines it wants to change, so a
 one-line tweak costs a few tokens instead of a whole file. Full `<file>` blocks are reserved for

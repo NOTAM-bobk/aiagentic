@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cloud, Frame, Sparkles, Square } from "lucide-react";
+import { Cloud, Compass, Frame, Hammer, Sparkles, Square } from "lucide-react";
 import type { Capabilities } from "@/lib/models";
-import type { WorkspaceMode } from "@/lib/protocol";
+import type { ChatMode, WorkspaceMode } from "@/lib/protocol";
 import { PUTER_MODELS } from "@/lib/puter-models";
 import { BUILDER_OPTIONS, resolveBuilder } from "@/lib/builders";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ export function Composer({
   builder,
   puterModel,
   mode,
+  chatMode,
   capabilities,
   busy,
   onSend,
@@ -19,10 +20,12 @@ export function Composer({
   onBuilder,
   onPuterModel,
   onMode,
+  onChatMode,
 }: {
   builder: string;
   puterModel: string;
   mode: WorkspaceMode;
+  chatMode: ChatMode;
   capabilities: Capabilities | null;
   busy: boolean;
   onSend: (text: string) => void;
@@ -30,6 +33,7 @@ export function Composer({
   onBuilder: (builder: string) => void;
   onPuterModel: (model: string) => void;
   onMode: (mode: WorkspaceMode) => void;
+  onChatMode: (mode: ChatMode) => void;
 }) {
   const [value, setValue] = useState("");
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -90,12 +94,53 @@ export function Composer({
               rows={1}
               spellCheck={false}
               enterKeyHint="send"
-              placeholder="ask anything, or describe what to build…"
+              placeholder={
+                chatMode === "plan"
+                  ? "think it through — ask anything, nothing gets built…"
+                  : "ask anything, or describe what to build…"
+              }
               className="max-h-[132px] min-h-[24px] w-full resize-none bg-transparent pb-2 font-mono text-[15px] leading-[1.5] text-ink placeholder:text-ink-faint focus:outline-none sm:text-[13px]"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 border-t border-line/60 px-1.5 py-1.5 font-mono text-[11px]">
+            <div
+              role="group"
+              aria-label="Agent mode"
+              className="flex items-center gap-0.5 rounded border border-line p-0.5"
+            >
+              <button
+                type="button"
+                onClick={() => onChatMode("plan")}
+                aria-pressed={chatMode === "plan"}
+                title="Plan mode — think it through together, nothing is written"
+                className={cn(
+                  "inline-flex min-h-6 items-center gap-1 rounded px-1.5 transition-colors",
+                  chatMode === "plan"
+                    ? "bg-ember/15 text-ember"
+                    : "text-ink-faint hover:text-ink",
+                )}
+              >
+                <Compass className="h-3 w-3" />
+                plan
+              </button>
+              <button
+                type="button"
+                onClick={() => onChatMode("build")}
+                aria-pressed={chatMode === "build"}
+                title="Build mode — writes files and runs the project"
+                className={cn(
+                  "inline-flex min-h-6 items-center gap-1 rounded px-1.5 transition-colors",
+                  chatMode === "build"
+                    ? "bg-ember/15 text-ember"
+                    : "text-ink-faint hover:text-ink",
+                )}
+              >
+                <Hammer className="h-3 w-3" />
+                build
+              </button>
+            </div>
+
             <label className="flex items-center gap-1.5 text-ink-faint">
               <span className="sr-only">Builder model</span>
               <select

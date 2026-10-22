@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { Project } from "@/lib/protocol";
 import type { Skill } from "@/lib/skills";
-import { bundleHtml, cn, uid } from "@/lib/utils";
+import { bundleHtml, cn, inlineImages, uid } from "@/lib/utils";
 
 export type PanelTab = "preview" | "files" | "activity" | "skills";
 
@@ -167,7 +167,7 @@ function PreviewTab({
 
   const html = useMemo(() => {
     if (!project || cloudUrl) return "";
-    return bundleHtml(project.files);
+    return inlineImages(bundleHtml(project.files), project.images ?? []);
   }, [project, cloudUrl]);
 
   const hasFiles = (project?.files.length ?? 0) > 0;

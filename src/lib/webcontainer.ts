@@ -10,6 +10,8 @@
  */
 
 export type RuntimeFile = { path: string; content: string };
+/** Binary project files (generated images) travel as base64. */
+export type RuntimeAsset = { path: string; base64: string };
 export type CommandResult = { exitCode: number; output: string };
 
 type RunnerMessage =
@@ -143,8 +145,8 @@ class BrowserRunner {
     };
   }
 
-  mount(files: RuntimeFile[]) {
-    return this.request<{ mounted: number }>("mount", { files });
+  mount(files: RuntimeFile[], assets: RuntimeAsset[] = []) {
+    return this.request<{ mounted: number }>("mount", { files, assets });
   }
 
   install() {

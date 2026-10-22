@@ -9,6 +9,7 @@ export const maxDuration = 60;
 type Body = {
   name?: string;
   files?: { path: string; content: string }[];
+  images?: { path: string; dataUrl?: string; base64?: string }[];
 };
 
 export async function POST(request: Request) {
@@ -26,7 +27,18 @@ async function run(request: Request) {
       .filter((file) => file.path && file.content.length <= 1_000_000)
       .slice(0, 160);
 
-    const report = await deployProject(name, files);
+    const images = (body.images ?? [])
+      .map((image) => {
+        const fromDataUrl = /^data:[^;,]+;base64,([\s\S]+)$/.exec(String(image.dataUrl ?? ""))?.[1] ?? "";
+        return {
+          path: sanitizePath(String(image.path ?? "")),
+          base64: (String(image.base64 ?? "") || fromDataUrl).replace(/\s+/g, ""),
+        };
+      })
+      .filter((image) => image.path && image.base64.length > 0 && image.base64.length <= 2_600_000)
+      .slice(0, 6);
+
+    const report = await deployProject(name, files, images);
     return NextResponse.json(report);
   } catch (error) {
     return handleError(error);

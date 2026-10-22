@@ -1,20 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BUILDER_PROMPT, TITLE_PROMPT, buildEditContext } from "@/lib/prompts";
+import { BUILDER_PROMPT, PLAN_MODE_PROMPT, TITLE_PROMPT, buildEditContext } from "@/lib/prompts";
 import {
   applyEdit,
+  imagePath,
+  mergeTasks,
   needsCloud,
   parseArtifacts,
   streamPreview,
   type ChatMessage,
+  type ChatMode,
   type DeployRecord,
   type Plan,
   type Project,
   type ProjectFile,
+  type ProjectImage,
+  type Task,
   type ToolEvent,
   type WorkspaceMode,
 } from "@/lib/protocol";
+import { base64FromDataUrl, shrinkImage } from "@/lib/images";
 import { loadPuter, puterChat } from "@/lib/puter";
 import { bootBrowserRunner, type BrowserRunnerApi } from "@/lib/webcontainer";
 import { slugTitle, truncate, uid } from "@/lib/utils";
@@ -41,8 +47,10 @@ function createProject(overrides: Partial<Project> = {}): Project {
     files: [],
     sandboxId: null,
     mode: "auto",
+    chatMode: "build",
     builder: "puter",
     previewUrl: null,
+    images: [],
     ...overrides,
   };
 }
@@ -67,8 +75,12 @@ function withoutRaw(projects: Project[]): Project[] {
       ...message,
       raw: undefined,
       pending: false,
+      tasks: message.tasks,
       tools: message.tools?.map((tool) => ({
         ...tool,
+        // The generated image already lives on the project; a second copy in
+        // the message would double the storage it takes.
+        meta: tool.meta?.src ? { ...tool.meta, src: undefined } : tool.meta,
         status: tool.status === "running" ? "error" : tool.status,
         output:
           tool.status === "running"
@@ -130,6 +142,37 @@ function cleanTitle(value: string): string | null {
     .slice(0, 64);
   if (!title || title.split(/\s+/).length > 8) return null;
   return title;
+}
+
+/** Plan mode replies are plain markdown; tolerate a JSON wrapper if one slips in. */
+function cleanPlanReply(raw: string): string {
+  const text = raw
+    .trim()
+    .replace(/^```[a-z]*\s*/i, "")
+    .replace(/```\s*$/, "")
+    .trim();
+  if (text.startsWith("{")) {
+    try {
+      const data = JSON.parse(text) as { reply?: unknown };
+      if (typeof data.reply === "string" && data.reply.trim()) return data.reply.trim();
+    } catch {
+      // Not JSON after all: show what the model wrote.
+    }
+  }
+  return text;
+}
+
+function runtimeAssets(images: ProjectImage[]): { path: string; base64: string }[] {
+  return images
+    .map((image) => ({ path: image.path, base64: base64FromDataUrl(image.dataUrl) }))
+    .filter((image) => image.base64.length > 0);
+}
+
+/** What to look up before refining: current craft for this kind of site. */
+function researchQuery(plan: Plan | null, prompt: string): string {
+  const subject = (plan?.concept ?? prompt).replace(/\s+/g, " ").trim().slice(0, 110);
+  const kind = plan?.stack && /next|react|vue|svelte|astro/i.test(plan.stack) ? "web app" : "website";
+  return `${kind} design best practices and UI enhancement ideas for: ${subject}`;
 }
 
 async function errorFromResponse(response: Response): Promise<string> {
@@ -367,14 +410,29 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") return;
     const timer = window.setTimeout(() => {
-      try {
+      const save = (list: Project[]) =>
         window.localStorage.setItem(
           STORAGE_KEY,
-          JSON.stringify({ projects: withoutRaw(projects), activeId } satisfies Stored),
+          JSON.stringify({ projects: withoutRaw(list), activeId } satisfies Stored),
         );
-      } catch {
-        // Quota errors are non-fatal; the session still works in memory.
+      // Generated images are the heavy part of a project. If the quota rejects
+      // the full set, keep the code first and drop the older pictures.
+      const shapes = [
+        projects,
+        projects.map((project) =>
+          project.id === activeId ? project : { ...project, images: [] },
+        ),
+        projects.map((project) => ({ ...project, images: [] })),
+      ];
+      for (const shape of shapes) {
+        try {
+          save(shape);
+          return;
+        } catch {
+          // Try the next, lighter shape.
+        }
       }
+      // Storage disabled or full: this session still works in memory.
     }, 350);
     return () => window.clearTimeout(timer);
   }, [projects, activeId, hydrated]);
@@ -505,6 +563,14 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     [patchProject],
   );
 
+  const setChatMode = useCallback(
+    (chatMode: ChatMode) => {
+      const id = activeIdRef.current;
+      if (id) patchProject(id, { chatMode });
+    },
+    [patchProject],
+  );
+
   const setPuterModel = useCallback(
     (puterModel: string) => {
       const id = activeIdRef.current;
@@ -528,7 +594,11 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         const response = await fetch("/api/deploy", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: project.deploy.host, files: project.files }),
+          body: JSON.stringify({
+            name: project.deploy.host,
+            files: project.files,
+            images: project.images ?? [],
+          }),
         });
         const data = (await response.json()) as {
           ok?: boolean;
@@ -580,7 +650,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
         if (browserRuntime) {
           const instance = await bootBrowserRunner();
-          await instance.mount(project.files);
+          await instance.mount(project.files, runtimeAssets(project.images ?? []));
           if (project.files.some((file) => file.path === "package.json")) {
             const install = await instance.install();
             if (install.exitCode !== 0) throw new Error(tail(install.output) || "Install failed.");
@@ -609,7 +679,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             await fetch("/api/sandbox", {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({ action: "write", sandboxId, files: project.files }),
+              body: JSON.stringify({
+                action: "write",
+                sandboxId,
+                files: project.files,
+                images: runtimeAssets(project.images ?? []),
+              }),
             });
           }
         }
@@ -761,7 +836,94 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         );
       };
 
+      /* 0 — plan mode: think with the user, touch nothing --------------- */
+      if ((project.chatMode ?? "build") === "plan") {
+        try {
+          setPhase("Thinking with you");
+          const prior = project.messages.filter((message) => !message.pending && message.content);
+          if (prior.at(-1)?.role === "user" && prior.at(-1)?.content === prompt) prior.pop();
+          const recent = prior
+            .slice(-8)
+            .map((message) => ({ role: message.role, content: message.content }));
+
+          let raw = "";
+          let flushAt = 0;
+          const onDelta = (delta: string) => {
+            raw += delta;
+            const now = Date.now();
+            if (now - flushAt > 80) {
+              flushAt = now;
+              patchMessage(projectId, assistant.id, { raw });
+            }
+          };
+
+          if (resolveBuilder(project.builder).provider === "puter") {
+            await loadPuter();
+            await puterChat({
+              model: project.puterModel ?? PUTER_MODELS[0].id,
+              messages: [
+                { role: "system", content: PLAN_MODE_PROMPT },
+                ...recent.slice(-6).map((message) => ({
+                  role: message.role,
+                  content: truncate(message.content, 900),
+                })),
+                { role: "user", content: prompt },
+              ],
+              onDelta,
+              signal: controller.signal,
+            });
+          } else {
+            const response = await fetch("/api/generate", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                builder: project.builder,
+                request: prompt,
+                planMode: true,
+                files: project.files,
+                history: recent,
+              }),
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error(await errorFromResponse(response));
+            if (!response.body) throw new Error("The model returned an empty stream.");
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              onDelta(decoder.decode(value, { stream: true }));
+              if (controller.signal.aborted) break;
+            }
+          }
+
+          const reply = cleanPlanReply(raw);
+          patchMessage(projectId, assistant.id, {
+            content: reply || "Nothing came back. Try again, or switch models.",
+            pending: false,
+            raw: undefined,
+          });
+          if (reply) {
+            void nameChat(projectId, prompt, reply, project.messages.length <= 1, project.builder);
+          }
+        } catch (error) {
+          if (controller.signal.aborted) {
+            patchMessage(projectId, assistant.id, { pending: false, content: "Stopped." });
+          } else {
+            const message = error instanceof Error ? error.message : "Plan mode failed";
+            patchMessage(projectId, assistant.id, { pending: false, error: message, content: "" });
+            setToast(message);
+          }
+        } finally {
+          abortRef.current = null;
+          setBusy(false);
+          setPhase("");
+        }
+        return;
+      }
+
       let files: ProjectFile[] = project.files;
+      let images: ProjectImage[] = project.images ?? [];
       let sandboxId = project.sandboxId ?? null;
       const preference: WorkspaceMode = project.mode;
       let engine: "cloud" | "webcontainer" | null = project.engine ?? null;
@@ -772,6 +934,23 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       const puterModel = project.puterModel ?? PUTER_MODELS[0].id;
       let title = project.title;
       const observations: string[] = [];
+      // So this build does not land on a palette and hero the last four already used.
+      const recentDirections = projectsRef.current
+        .filter((item) => item.id !== project.id)
+        .map((item) => [...item.messages].reverse().find((message) => message.plan)?.plan)
+        .filter((value): value is Plan => Boolean(value))
+        .slice(0, 4)
+        .map((value) =>
+          [
+            value.title,
+            value.artDirection?.palette ?? "",
+            value.artDirection?.typography ?? "",
+            value.artDirection?.layout ?? "",
+          ]
+            .filter(Boolean)
+            .join(" · ")
+            .slice(0, 220),
+        );
       const prior = project.messages.filter((message) => !message.pending && message.content);
       if (prior.at(-1)?.role === "user" && prior.at(-1)?.content === prompt) prior.pop();
       const history = prior
@@ -1103,6 +1282,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         const actionTools = session?.tools ?? [];
         let raw = "";
         let summaryText = "";
+        let tasks: Task[] = [];
+        let reviewed = false;
         for (let round = 1; round <= MAX_ROUNDS; round += 1) {
           setPhase(round > 1 ? "Refining" : plan ? "Building" : "Thinking");
           raw = "";
@@ -1119,7 +1300,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             const now = Date.now();
             if (now - flushAt > 90) {
               flushAt = now;
-              patchMessage(projectId, assistant.id, { raw });
+              tasks = mergeTasks(tasks, raw);
+              patchMessage(projectId, assistant.id, { raw, tasks });
             }
           };
 
@@ -1134,6 +1316,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 maxRounds: MAX_ROUNDS,
                 skills,
                 actionTools,
+                images: images.map((image) => ({ path: image.path, alt: image.alt })),
+                recentDirections,
               });
               await puterChat({
                 model: puterModel,
@@ -1162,6 +1346,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                   history,
                   skills,
                   actionTools,
+                  images: images.map((image) => ({ path: image.path, alt: image.alt })),
+                  recentDirections,
                 }),
                 signal: controller.signal,
               });
@@ -1190,7 +1376,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           }
 
           if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
-          patchMessage(projectId, assistant.id, { raw });
+          tasks = mergeTasks(tasks, raw);
+          patchMessage(projectId, assistant.id, { raw, tasks });
 
           const artifacts = parseArtifacts(raw);
           const fileArtifacts = artifacts.filter((artifact) => artifact.kind === "file");
@@ -1203,6 +1390,66 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             .filter(Boolean);
           if (thoughts.length > 0) {
             patchMessage(projectId, assistant.id, { thinking: thoughts.join("\n\n").slice(0, 6000) });
+          }
+
+          /* 2b — images: the image model draws real files --------------- */
+          const imageArtifacts = artifacts.filter((artifact) => artifact.kind === "image").slice(0, 3);
+          for (const artifact of imageArtifacts) {
+            if (artifact.kind !== "image") continue;
+            const path = imagePath(artifact.path);
+            if (images.some((image) => image.path === path)) {
+              observations.push(`The image ${path} is already in this project. Reuse it by path.`);
+              continue;
+            }
+
+            const toolId = pushTool({
+              kind: "image",
+              label: `Drawing ${path}`,
+              detail: artifact.prompt.replace(/\s+/g, " ").slice(0, 70),
+            });
+            setPhase(`Drawing ${path}`);
+            try {
+              const response = await fetch("/api/image", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ prompt: artifact.prompt, path }),
+                signal: controller.signal,
+              });
+              if (!response.ok) throw new Error(await errorFromResponse(response));
+              const data = (await response.json()) as { dataUrl?: string; mime?: string; model?: string };
+              if (!data.dataUrl) throw new Error("The image model returned no picture.");
+
+              const shrunk = await shrinkImage(data.dataUrl, path);
+              const alt = artifact.alt || artifact.prompt.replace(/\s+/g, " ").slice(0, 160);
+              const image: ProjectImage = {
+                path,
+                alt,
+                prompt: artifact.prompt,
+                mime: shrunk.mime,
+                dataUrl: shrunk.dataUrl,
+                at: Date.now(),
+              };
+              images = [...images.filter((item) => item.path !== path), image];
+              patchProject(projectId, { images });
+
+              const kb = Math.max(1, Math.round((shrunk.dataUrl.length * 0.75) / 1024));
+              resolveTool(toolId, {
+                status: "ok",
+                label: `${path} · ${kb}kb`,
+                detail: data.model,
+                output: artifact.prompt,
+                meta: { src: shrunk.dataUrl, alt, image: true },
+              });
+              observations.push(
+                `Generated ${path} (${shrunk.mime}). Reference it with <img src="${path}" alt="${alt}">.`,
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Image generation failed";
+              resolveTool(toolId, { status: "error", output: message });
+              observations.push(
+                `Image generation failed for ${path}: ${message}. Build that idea with type, CSS, or inline SVG instead of leaving a broken image reference.`,
+              );
+            }
           }
 
           for (const artifact of artifacts) {
@@ -1343,7 +1590,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           if (engine === "webcontainer") {
             try {
               const instance = await ensureRunner();
-              await instance.mount(merged);
+              await instance.mount(merged, runtimeAssets(images));
               mergeFiles(incoming);
               resolveTool(writeTool, {
                 status: "ok",
@@ -1380,7 +1627,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 const response = await fetch("/api/sandbox", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ action: "write", sandboxId: id, files: payload }),
+                  body: JSON.stringify({
+                    action: "write",
+                    sandboxId: id,
+                    files: payload,
+                    images: runtimeAssets(images),
+                  }),
                   signal: controller.signal,
                 });
                 if (!response.ok) throw new Error(await errorFromResponse(response));
@@ -1655,6 +1907,170 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
           if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
 
+          /* 5 — check the work, then ask someone else what to improve ---- */
+          if (!reviewed && round < MAX_ROUNDS) {
+            reviewed = true;
+            setPhase("Verifying and reviewing");
+            const notes: string[] = [];
+
+            // Current craft for this kind of site, from the live web.
+            if (capabilities?.tavily) {
+              const query = researchQuery(plan, prompt);
+              const toolId = pushTool({
+                kind: "search",
+                label: `Researching “${query.slice(0, 52)}”`,
+                detail: "tavily",
+              });
+              try {
+                const response = await fetch("/api/search", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ query }),
+                  signal: controller.signal,
+                });
+                if (!response.ok) throw new Error(await errorFromResponse(response));
+                const data = (await response.json()) as { summary?: string };
+                const summary = (data.summary ?? "").trim();
+                resolveTool(toolId, {
+                  status: "ok",
+                  label: `Researched “${query.slice(0, 40)}”`,
+                  output: truncate(summary, 900) || "No useful results.",
+                });
+                if (summary) {
+                  notes.push(
+                    `## Web research — current craft for this kind of site\nApply only what fits this project.\n\n${truncate(summary, 2200)}`,
+                  );
+                }
+              } catch (error) {
+                resolveTool(toolId, {
+                  status: "error",
+                  output: error instanceof Error ? error.message : "Search failed",
+                });
+              }
+            }
+
+            // Does the thing it just built actually work?
+            const verifyTool = pushTool({
+              kind: "verify",
+              label: "Checking the live preview",
+              detail: previewUrl ? previewUrl.replace(/^https?:\/\//, "").split("/")[0] : "files only",
+            });
+            try {
+              const response = await fetch("/api/verify", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  url: previewUrl ?? undefined,
+                  files,
+                  images: images.map((image) => image.path),
+                }),
+                signal: controller.signal,
+              });
+              if (!response.ok) throw new Error(await errorFromResponse(response));
+              const data = (await response.json()) as {
+                issues?: string[];
+                note?: string;
+              };
+              const issues = data.issues ?? [];
+              if (issues.length > 0) {
+                notes.push(
+                  `## What the check found\n${issues.map((issue) => `- ${issue}`).join("\n")}\nFix these before you finish.`,
+                );
+              }
+              resolveTool(verifyTool, {
+                status: issues.length > 0 ? "error" : "ok",
+                label:
+                  issues.length > 0
+                    ? `${issues.length} issue${issues.length === 1 ? "" : "s"} found`
+                    : "Preview checks out",
+                output:
+                  [data.note, ...issues].filter(Boolean).join("\n") ||
+                  "The page renders, has a title and an h1, and has no placeholder copy.",
+              });
+            } catch (error) {
+              resolveTool(verifyTool, {
+                status: "error",
+                output: error instanceof Error ? error.message : "The check failed",
+              });
+            }
+
+            // Somebody else looks at it: the builder is never its own reviewer.
+            const reviewTool = pushTool({
+              kind: "review",
+              label: "Asking another model what to improve",
+              detail: "second opinion",
+            });
+            try {
+              const response = await fetch("/api/critique", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ builder, request: prompt, plan, files }),
+                signal: controller.signal,
+              });
+              if (!response.ok) throw new Error(await errorFromResponse(response));
+              const data = (await response.json()) as {
+                issues?: string[];
+                ideas?: string[];
+                verdict?: string;
+                model?: string;
+                skipped?: string;
+              };
+              if (data.skipped) {
+                resolveTool(reviewTool, {
+                  status: "ok",
+                  label: "No second model available",
+                  detail: data.skipped === "no_reviewer" ? "add a Groq or Google key" : undefined,
+                });
+              } else {
+                const issues = data.issues ?? [];
+                const ideas = data.ideas ?? [];
+                if (issues.length > 0 || ideas.length > 0) {
+                  notes.push(
+                    [
+                      `## Review by ${data.model ?? "a second model"}`,
+                      data.verdict ?? "",
+                      issues.length > 0
+                        ? `Problems, most important first:\n${issues.map((issue) => `- ${issue}`).join("\n")}`
+                        : "",
+                      ideas.length > 0
+                        ? `Ideas that fit this subject:\n${ideas.map((idea) => `- ${idea}`).join("\n")}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join("\n"),
+                  );
+                }
+                resolveTool(reviewTool, {
+                  status: "ok",
+                  label:
+                    issues.length > 0
+                      ? `${issues.length} thing${issues.length === 1 ? "" : "s"} to fix`
+                      : "No blocking issues",
+                  detail: data.model,
+                  output:
+                    [
+                      data.verdict ?? "",
+                      ...issues.map((issue) => `• ${issue}`),
+                      ...ideas.map((idea) => `◦ ${idea}`),
+                    ]
+                      .filter(Boolean)
+                      .join("\n") || "The reviewer had nothing to add.",
+                });
+              }
+            } catch (error) {
+              resolveTool(reviewTool, {
+                status: "error",
+                output: error instanceof Error ? error.message : "The review failed",
+              });
+            }
+
+            if (notes.length > 0) {
+              observations.push(...notes);
+              continue;
+            }
+            setPhase("");
+          }
+
           summaryText = doneArtifact?.kind === "done" ? doneArtifact.summary : "";
           if (!hasFollowUp || summaryText) {
             if (!summaryText) {
@@ -1678,7 +2094,16 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           raw: undefined,
           content: summaryText || "Done. The site is in your workspace.",
         });
-        patchProject(projectId, { previewUrl, sandboxId, engine, mode: preference, builder, title, runCommand });
+        patchProject(projectId, {
+          previewUrl,
+          sandboxId,
+          engine,
+          mode: preference,
+          builder,
+          title,
+          runCommand,
+          images,
+        });
         void nameChat(projectId, prompt, summaryText, project.messages.length <= 1, builder);
 
         // Nothing to look at: park the machine now rather than keep it warm.
@@ -1770,6 +2195,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     renameProject,
     setBuilder,
     setMode,
+    setChatMode,
     setPuterModel,
     recordDeploy,
     redeploy,

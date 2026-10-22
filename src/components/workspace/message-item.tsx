@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChevronRight, GitBranch, Loader2, LogIn } from "lucide-react";
-import type { ChatMessage, Question, ToolEvent } from "@/lib/protocol";
+import type { ChatMessage, Question, Task, ToolEvent } from "@/lib/protocol";
 import { streamPreview, streamSteps, streamThink } from "@/lib/protocol";
 import { cn } from "@/lib/utils";
 import { getUserId } from "@/hooks/use-workspace";
@@ -23,6 +23,9 @@ const VERBS: Record<ToolEvent["kind"], string> = {
   git: "git",
   delete: "rm",
   sandbox: "sandbox",
+  image: "image",
+  verify: "verify",
+  review: "review",
 };
 
 function StatusGlyph({ status }: { status: ToolEvent["status"] }) {
@@ -121,6 +124,18 @@ function ToolRow({
         <pre className="ml-6 mb-1.5 max-h-64 overflow-auto border-l border-line py-1 pl-3 text-[11.5px] leading-relaxed whitespace-pre-wrap break-words text-ink-soft">
           {tool.output}
         </pre>
+      )}
+
+      {tool.kind === "image" && typeof tool.meta?.src === "string" && (
+        <div className="ml-6 border-l border-line py-1.5 pl-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a generated data URL, not a remote asset */}
+          <img
+            src={tool.meta.src}
+            alt={String(tool.meta?.alt ?? "Generated image")}
+            loading="lazy"
+            className="max-h-44 w-auto max-w-full border border-line object-cover"
+          />
+        </div>
       )}
 
       {git && (
@@ -455,6 +470,54 @@ function ActionApproval({ action, args }: { action: string; args: string }) {
   );
 }
 
+function TaskList({ tasks, live }: { tasks: Task[]; live: boolean }) {
+  const [open, setOpen] = useState(true);
+  const done = tasks.filter((task) => task.status === "done").length;
+  const complete = done === tasks.length;
+
+  return (
+    <div className="border border-line bg-paper-2/30 font-mono">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-paper-2/50"
+      >
+        <ChevronRight
+          className={cn("h-3 w-3 shrink-0 text-ink-faint transition-transform", open && "rotate-90")}
+        />
+        <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">tasks</span>
+        <span className={cn("text-[11px] tabular-nums", complete ? "text-ember" : "text-ink-faint")}>
+          {done}/{tasks.length}
+        </span>
+        {live && !complete && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-ember" />}
+      </button>
+      {open && (
+        <ul className="space-y-1 border-t border-line px-3.5 py-2.5">
+          {tasks.map((task) => {
+            const finished = task.status === "done";
+            return (
+              <li key={task.id} className="flex gap-2 text-[12px] leading-relaxed">
+                <span className={cn("shrink-0", finished ? "text-ember" : "text-ink-faint")}>
+                  {finished ? "✓" : live ? "▸" : "·"}
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0",
+                    finished ? "text-ink-faint line-through decoration-line-strong" : "text-ink-soft",
+                  )}
+                >
+                  {task.title}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function MessageItem({
   message,
   phase,
@@ -504,6 +567,10 @@ export function MessageItem({
       {thinking && <ThinkingBlock text={thinking} live={streaming} />}
 
       {message.plan && <PlanCard plan={message.plan} />}
+
+      {message.tasks && message.tasks.length > 0 && (
+        <TaskList tasks={message.tasks} live={streaming} />
+      )}
 
       {tools.length > 0 && (
         <div className="rounded-xl border-l border-line pl-3.5">

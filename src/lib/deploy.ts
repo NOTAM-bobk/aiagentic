@@ -168,8 +168,13 @@ function detectFramework(files: { path: string; content: string }[]): string | n
   }
 }
 
-function deployableFiles(files: { path: string; content: string }[]): { file: string; data: string; encoding: "base64" }[] {
-  const output: { file: string; data: string; encoding: "base64" }[] = [];
+type VercelFile = { file: string; data: string; encoding: "base64" };
+
+function deployableFiles(
+  files: { path: string; content: string }[],
+  images: { path: string; base64: string }[] = [],
+): VercelFile[] {
+  const output: VercelFile[] = [];
   let total = 0;
   for (const raw of files) {
     const path = sanitizePath(raw.path);
@@ -189,6 +194,17 @@ function deployableFiles(files: { path: string; content: string }[]): { file: st
     });
     total += bytes;
   }
+
+  // Generated images are binary: send them as base64 next to the text files.
+  for (const image of images) {
+    const path = sanitizePath(image.path);
+    if (!path || !BINARY.has(path.split(".").pop()?.toLowerCase() ?? "")) continue;
+    const bytes = Math.ceil(image.base64.length * 0.75);
+    if (bytes > MAX_FILE_BYTES || output.length >= MAX_FILES || total + bytes > MAX_TOTAL_BYTES) continue;
+    output.push({ file: path, data: image.base64, encoding: "base64" });
+    total += bytes;
+  }
+
   return output;
 }
 
@@ -208,6 +224,7 @@ export type DeployReport = {
 export async function deployProject(
   rawLabel: string,
   files: { path: string; content: string }[],
+  images: { path: string; base64: string }[] = [],
 ): Promise<DeployReport> {
   const check = await checkSubdomain(rawLabel);
   const projectName = `base31-${check.label}`;
@@ -226,7 +243,7 @@ export async function deployProject(
     throw new ApiError("Build the site first — there are no files to deploy.", 400, "deploy_empty");
   }
 
-  const payload = deployableFiles(files);
+  const payload = deployableFiles(files, images);
   if (payload.length === 0) {
     throw new ApiError("None of the project files can be deployed (they are binary or too large).", 400);
   }
