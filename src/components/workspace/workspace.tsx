@@ -27,6 +27,7 @@ import { ChatPanel } from "./chat-panel";
 import { PuterAccount } from "./puter-account";
 import { PreviewPanel, type PanelTab } from "./preview-panel";
 import { GitSheet, IntegrationsSheet, SetupSheet } from "./sheets";
+import { DeploySheet } from "./deploy-sheet";
 
 export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const workspace = useWorkspace({ initialPrompt });
@@ -39,6 +40,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [setupOpen, setSetupOpen] = useState(false);
   const [gitOpen, setGitOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncFiles, setSyncFiles] = useState(false);
   const [panelWidth, setPanelWidth] = useState(52);
@@ -385,6 +387,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               onExport={exportSite}
               skills={workspace.skills}
               onSaveSkills={workspace.saveSkills}
+              onDeploy={() => setDeployOpen(true)}
             />
           </div>
         </div>
@@ -478,6 +481,13 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         project={active}
         onOpenSetup={openSetup}
         onImport={workspace.importRepo}
+        onToast={workspace.setToast}
+      />
+      <DeploySheet
+        open={deployOpen}
+        onClose={() => setDeployOpen(false)}
+        project={active}
+        onOpenSetup={openSetup}
         onToast={workspace.setToast}
       />
 

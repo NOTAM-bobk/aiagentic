@@ -1269,8 +1269,17 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
           if (!needsCloudRun(merged, artifacts)) {
             engine = null;
-          } else if (preference === "cloud" || (!webContainerFriendly && capabilities?.daytona)) {
+          } else if (preference === "cloud") {
             engine = "cloud";
+          } else if (!webContainerFriendly) {
+            // Python, Go, Rust and long-running servers need a real machine.
+            // WebContainers only run Node, so do not pretend otherwise.
+            engine = capabilities?.daytona ? "cloud" : null;
+            if (!capabilities?.daytona) {
+              observations.push(
+                "This stack needs a server runtime. The free browser runtime only runs Node.js; add a Daytona key to preview Python, Go, Rust, or custom servers.",
+              );
+            }
           } else {
             engine = "webcontainer";
           }

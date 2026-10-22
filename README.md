@@ -122,6 +122,12 @@ GPT-OSS 120B on Groq, and Puter. Puter adds its own free model picker (default, 
 Gemini 2.5 Flash, DeepSeek Chat). Cloud/browser mode sits beside them. Drag the divider beside the
 preview to resize it (double-click resets, arrow keys work when focused).
 
+**Deploy** in the preview header opens a sheet where you pick a free subdomain under
+`base31.org` and check it against Vercel's project domains, then deploy the project. Vercel builds
+the project from source, so Next/Astro/SvelteKit/Vue projects work without a local build; static
+sites deploy as files. The deploy creates a project named `base31-<label>` and attaches the
+domain — `base31.org` must live on the same Vercel account/team as the token.
+
 ## Environment variables on Vercel
 
 Add these in **Project → Settings → Environment Variables**, for Production, Preview, and
@@ -135,6 +141,9 @@ Development, then redeploy.
 | `DAYTONA_API_KEY` | Optional | [app.daytona.io](https://app.daytona.io/dashboard/keys) | Sandboxes, commands, signed previews |
 | `COMPOSIO_API_KEY` | Optional | [app.composio.dev](https://app.composio.dev/developers) | GitHub / Supabase / Cloudflare / Vercel connectors |
 | `GITHUB_TOKEN` | Optional | [github.com/settings/tokens](https://github.com/settings/tokens) | Octokit pushes: create repo, branch, commit, push |
+| `VERCEL_TOKEN` | Optional | [vercel.com/account/tokens](https://vercel.com/account/tokens) | Deploy to `<name>.base31.org` (add `base31.org` to the same Vercel team) |
+| `VERCEL_TEAM_ID` | Optional | Vercel team settings | Team that owns `base31.org` |
+| `BASE31_DOMAIN` | Optional | default `base31.org` | Override the deploy apex domain |
 | `NEXT_PUBLIC_SITE_URL` | Optional | your domain | Canonical and Open Graph URLs (Vercel's hostname is used if unset) |
 
 Optional overrides: `GROQ_PLANNER_MODEL`, `GOOGLE_BUILDER_MODEL`, `GROQ_BUILDER_MODEL`,

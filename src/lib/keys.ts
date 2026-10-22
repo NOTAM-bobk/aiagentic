@@ -43,6 +43,13 @@ export const API_KEY_FIELDS = [
     purpose: "Push commits to GitHub",
     href: "https://github.com/settings/tokens",
   },
+  {
+    id: "vercel",
+    env: "VERCEL_TOKEN",
+    label: "Vercel token",
+    purpose: "Deploy sites to base31.org subdomains",
+    href: "https://vercel.com/account/tokens",
+  },
 ] as const;
 
 export type ApiKeyId = (typeof API_KEY_FIELDS)[number]["id"];

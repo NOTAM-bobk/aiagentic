@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { getUserId } from "@/hooks/use-workspace";
 import { readSessionId } from "@/lib/composio-session-client";
 
-function Sheet({
+export function Sheet({
   open,
   onClose,
   title,
@@ -509,6 +509,7 @@ export function SetupSheet({
             ["DAYTONA_TARGET", "your region"],
             ["GITHUB_TOKEN", "octokit push"],
             ["WEBCONTAINER_API_KEY", "stackblitz commands"],
+            ["VERCEL_TOKEN", "base31 deploys"],
           ].map(([key, value]) => (
             <div key={key} className="flex flex-wrap justify-between gap-2 border-b border-line/70 pb-1">
               <dt className="text-ink">{key}</dt>

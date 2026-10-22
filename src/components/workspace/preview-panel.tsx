@@ -8,6 +8,7 @@ import {
   Loader2,
   Monitor,
   Plus,
+  Rocket,
   RefreshCw,
   Smartphone,
   Trash2,
@@ -36,6 +37,7 @@ export function PreviewPanel({
   onExport,
   skills,
   onSaveSkills,
+  onDeploy,
 }: {
   project: Project | null;
   tab: PanelTab;
@@ -47,6 +49,7 @@ export function PreviewPanel({
   onExport: () => void;
   skills: Skill[];
   onSaveSkills: (skills: Skill[]) => void;
+  onDeploy: () => void;
 }) {
   const counts = project?.files.length ?? 0;
 
@@ -83,6 +86,15 @@ export function PreviewPanel({
               <RefreshCw className={cn("h-3.5 w-3.5", syncFiles && "animate-spin")} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={onDeploy}
+            disabled={!project || counts === 0}
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-ember/40 bg-ember/10 px-2.5 text-[11.5px] text-ember transition-colors hover:border-ember disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Rocket className="h-3 w-3" />
+            <span className="hidden sm:inline">deploy</span>
+          </button>
           <button
             type="button"
             onClick={onExport}
@@ -132,7 +144,26 @@ function PreviewTab({
     return <SkeletonPanel title="no site yet" lines={["it renders here after the first build."]} />;
   }
 
-  if (!cloudUrl && !cloud && project.files.some((file) => file.path === "package.json")) {
+  const hasPackage = project.files.some((file) => file.path === "package.json");
+  const needsServer =
+    Boolean(project.runCommand) ||
+    project.files.some((file) =>
+      ["requirements.txt", "Cargo.toml", "go.mod", "Gemfile"].includes(file.path),
+    );
+
+  if (!cloudUrl && !cloud && needsServer && !hasPackage) {
+    return (
+      <SkeletonPanel
+        title="needs a server runtime"
+        lines={[
+          "python, go, rust and custom servers can't run in the browser runtime.",
+          "add a daytona key and switch to cloud to start it.",
+        ]}
+      />
+    );
+  }
+
+  if (!cloudUrl && !cloud && hasPackage) {
     return (
       <SkeletonPanel
         title="needs a runtime"
