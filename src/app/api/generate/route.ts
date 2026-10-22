@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { streamText, type ModelMessage } from "ai";
 import { createGroq } from "@ai-sdk/groq";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { BUILDER_MODEL, GROQ_BUILDER_MODEL } from "@/lib/models";
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GROQ_MODEL, resolveBuilder } from "@/lib/builders";
 import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 import { BUILDER_PROMPT, buildEditContext } from "@/lib/prompts";
 import type { Plan, ProjectFile } from "@/lib/protocol";
@@ -52,10 +52,10 @@ export async function POST(request: Request) {
 async function run(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Body;
   const prompt = (body.request ?? "").trim();
-  const builder = body.builder ?? "gemini";
+  const builder = resolveBuilder(body.builder);
 
   if (!prompt) return NextResponse.json({ error: "Missing request." }, { status: 400 });
-  if (builder === "puter") {
+  if (builder.provider === "puter") {
     return NextResponse.json(
       { error: "Puter builds run in the browser. The client should not call this endpoint." },
       { status: 400 },
@@ -92,7 +92,8 @@ async function run(request: Request) {
   ];
 
   let model;
-  if (builder === "groq") {
+  let modelName = builder.model;
+  if (builder.provider === "groq") {
     const key = apiKey("groq");
     if (!key) {
       return NextResponse.json(
@@ -104,7 +105,11 @@ async function run(request: Request) {
         { status: 503 },
       );
     }
-    model = createGroq({ apiKey: key })(GROQ_BUILDER_MODEL);
+    modelName =
+      builder.model === DEFAULT_GROQ_MODEL && process.env.GROQ_BUILDER_MODEL
+        ? process.env.GROQ_BUILDER_MODEL
+        : builder.model;
+    model = createGroq({ apiKey: key })(modelName);
   } else {
     const googleKey = apiKey("google") ?? process.env.GOOGLE_API_KEY;
     if (!googleKey) {
@@ -117,7 +122,11 @@ async function run(request: Request) {
         { status: 503 },
       );
     }
-    model = createGoogleGenerativeAI({ apiKey: googleKey })(BUILDER_MODEL);
+    modelName =
+      builder.model === DEFAULT_GEMINI_MODEL && process.env.GOOGLE_BUILDER_MODEL
+        ? process.env.GOOGLE_BUILDER_MODEL
+        : builder.model;
+    model = createGoogleGenerativeAI({ apiKey: googleKey })(modelName);
   }
 
   const result = streamText({
@@ -133,7 +142,7 @@ async function run(request: Request) {
   return result.toTextStreamResponse({
     headers: {
       "cache-control": "no-store",
-      "x-kiln-model": builder === "groq" ? GROQ_BUILDER_MODEL : BUILDER_MODEL,
+      "x-kiln-model": modelName,
     },
   });
 }

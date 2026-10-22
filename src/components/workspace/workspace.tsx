@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   GitBranch,
   Loader2,
@@ -39,6 +39,52 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [gitOpen, setGitOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncFiles, setSyncFiles] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(52);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const widthRef = useRef(52);
+
+  useEffect(() => {
+    const stored = Number(window.localStorage.getItem("kiln.panelWidth"));
+    if (Number.isFinite(stored) && stored >= 28 && stored <= 72) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restore saved split after hydration
+      setPanelWidth(stored);
+      widthRef.current = stored;
+    }
+  }, []);
+
+  useEffect(() => {
+    widthRef.current = panelWidth;
+    try {
+      window.localStorage.setItem("kiln.panelWidth", String(Math.round(panelWidth)));
+    } catch {
+      // Storage disabled: the split still applies for this session.
+    }
+  }, [panelWidth]);
+
+  const startResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const container = splitRef.current;
+    if (!container) return;
+    event.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const startX = event.clientX;
+    const startWidth = widthRef.current;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const move = (moveEvent: PointerEvent) => {
+      const percent = startWidth - ((moveEvent.clientX - startX) / rect.width) * 100;
+      setPanelWidth(Math.min(72, Math.max(28, percent)));
+    };
+    const up = () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }, []);
 
   const { active, capabilities, hydrated, projects } = workspace;
 
@@ -197,15 +243,8 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           </aside>
         )}
 
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 flex-col lg:grid",
-            panelVisible
-              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]"
-              : "lg:grid-cols-1",
-          )}
-        >
-          <div className={cn("min-h-0 flex-1 lg:block", mobileView === "chat" ? "block" : "hidden")}>
+        <div ref={splitRef} className="flex min-w-0 flex-1 flex-col lg:flex-row">
+          <div className={cn("min-h-0 min-w-0 flex-1 lg:block", mobileView === "chat" ? "block" : "hidden")}>
             <ChatPanel
               project={active}
               capabilities={capabilities}
@@ -221,9 +260,34 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             />
           </div>
 
+          {panelVisible && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize preview"
+              aria-valuenow={Math.round(panelWidth)}
+              aria-valuemin={28}
+              aria-valuemax={72}
+              tabIndex={0}
+              onPointerDown={startResize}
+              onDoubleClick={() => setPanelWidth(52)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                event.preventDefault();
+                setPanelWidth((value) =>
+                  Math.min(72, Math.max(28, value + (event.key === "ArrowLeft" ? 2 : -2))),
+                );
+              }}
+              className="group hidden w-1.5 shrink-0 cursor-col-resize touch-none bg-line transition-colors hover:bg-ember/60 focus-visible:bg-ember/60 lg:grid lg:place-items-center"
+            >
+              <span className="h-8 w-px bg-line-strong transition-colors group-hover:bg-paper/70" />
+            </div>
+          )}
+
           <div
+            style={{ "--panel-width": `${panelWidth}%` } as React.CSSProperties}
             className={cn(
-              "min-h-0 flex-1 border-line lg:block lg:border-l",
+              "min-h-0 w-full border-line lg:w-[var(--panel-width)] lg:flex-none lg:border-l",
               mobileView === "site" ? "block" : "hidden",
               !panelVisible && "lg:hidden",
             )}

@@ -508,6 +508,7 @@ export function SetupSheet({
             ["DAYTONA_API_URL", "daytona cloud"],
             ["DAYTONA_TARGET", "your region"],
             ["GITHUB_TOKEN", "octokit push"],
+            ["WEBCONTAINER_API_KEY", "stackblitz commands"],
           ].map(([key, value]) => (
             <div key={key} className="flex flex-wrap justify-between gap-2 border-b border-line/70 pb-1">
               <dt className="text-ink">{key}</dt>

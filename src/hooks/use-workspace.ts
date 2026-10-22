@@ -22,6 +22,7 @@ import { PUTER_MODELS } from "@/lib/puter-models";
 import { readKeys } from "@/lib/keys-client";
 import { readSkills, sanitizeSkills, writeSkills, type Skill } from "@/lib/skills";
 import { loadSessionTools } from "@/lib/composio-session-client";
+import { resolveBuilder } from "@/lib/builders";
 
 const STORAGE_KEY = "kiln.workspace.v1";
 const MAX_ROUNDS = 4;
@@ -341,7 +342,11 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       if (raw) {
         const parsed = JSON.parse(raw) as Stored;
         if (Array.isArray(parsed.projects)) {
-          const restored = parsed.projects.map((project) => ({ ...project, messages: project.messages ?? [] }));
+          const restored = parsed.projects.map((project) => ({
+            ...project,
+            messages: project.messages ?? [],
+            builder: resolveBuilder(project.builder).id,
+          }));
           // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
           setProjects(restored);
           setSkills(readSkills());
@@ -383,7 +388,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setProjects((prev) =>
       prev.map((project) =>
         project.messages.length === 0
-          ? { ...project, builder: project.builder === "puter" ? builder : project.builder, mode }
+          ? { ...project, builder: resolveBuilder(project.builder).provider === "puter" ? builder : project.builder, mode }
           : project,
       ),
     );
@@ -624,7 +629,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         }
 
         // No server-side model: ask Puter in the browser, which is already signed in.
-        if (!title && builder === "puter") {
+        if (!title && resolveBuilder(builder).provider === "puter") {
           await loadPuter();
           const raw = await puterChat({
             messages: [
@@ -1055,7 +1060,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           const writeTool = pushTool({
             kind: "write",
             label: round > 1 ? `Revision ${round}` : plan ? "Building" : "Thinking",
-            detail: builder === "puter" ? "puter" : builder,
+            detail: resolveBuilder(builder).label,
           });
 
           let flushAt = 0;
@@ -1069,7 +1074,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           };
 
           try {
-            if (builder === "puter") {
+            if (resolveBuilder(builder).provider === "puter") {
               await loadPuter();
               const context = buildEditContext({
                 plan,
@@ -1127,7 +1132,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             resolveTool(writeTool, {
               status: "error",
               output:
-                builder === "puter"
+                resolveBuilder(builder).provider === "puter"
                   ? `${message} Puter may need a one-time sign-in — retry and approve the popup.`
                   : message,
             });

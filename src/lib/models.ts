@@ -1,4 +1,5 @@
 import { apiKey } from "./keys-server";
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GROQ_MODEL } from "./builders";
 
 export type BuilderId = "gemini" | "groq" | "puter";
 export type PlannerId = "groq";
@@ -15,8 +16,8 @@ export type ModelOption = {
 };
 
 export const PLANNER_MODEL = process.env.GROQ_PLANNER_MODEL ?? "openai/gpt-oss-120b";
-export const BUILDER_MODEL = process.env.GOOGLE_BUILDER_MODEL ?? "gemini-3.8-flash";
-export const GROQ_BUILDER_MODEL = process.env.GROQ_BUILDER_MODEL ?? "openai/gpt-oss-120b";
+export const BUILDER_MODEL = process.env.GOOGLE_BUILDER_MODEL ?? DEFAULT_GEMINI_MODEL;
+export const GROQ_BUILDER_MODEL = process.env.GROQ_BUILDER_MODEL ?? DEFAULT_GROQ_MODEL;
 
 export const PLANNERS: ModelOption[] = [
   {
@@ -30,35 +31,7 @@ export const PLANNERS: ModelOption[] = [
   },
 ];
 
-export const BUILDERS: ModelOption[] = [
-  {
-    id: "gemini",
-    label: "Gemini 3.8 Flash",
-    provider: "Google AI Studio",
-    model: BUILDER_MODEL,
-    role: "builder",
-    blurb: "Strong long-horizon code generation",
-    needsKey: true,
-  },
-  {
-    id: "groq",
-    label: "GPT-OSS 120B",
-    provider: "Groq",
-    model: GROQ_BUILDER_MODEL,
-    role: "builder",
-    blurb: "Fast edits, very low cost",
-    needsKey: true,
-  },
-  {
-    id: "puter",
-    label: "Puter (free)",
-    provider: "Puter",
-    model: "claude-sonnet-4-5",
-    role: "builder",
-    blurb: "No API key · runs in your browser",
-    needsKey: false,
-  },
-];
+
 
 export type Capabilities = {
   groq: boolean;

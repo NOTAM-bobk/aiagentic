@@ -1,8 +1,10 @@
 // An empty id means "let Puter choose its current default model", which is the
 // most durable choice: Puter rotates model availability without notice.
+// The named entries are provider-qualified ids from Puter's model directory;
+// they draw on Puter's free monthly allowance rather than a local API key.
 export const PUTER_MODELS = [
   { id: "", label: "Puter default" },
-  { id: "claude-sonnet-4-5", label: "Claude Sonnet" },
-  { id: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
-  { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
+  { id: "openai/gpt-5-nano", label: "GPT-5 Nano · free" },
+  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash · free" },
+  { id: "deepseek/deepseek-chat", label: "DeepSeek Chat · free" },
 ];

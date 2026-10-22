@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { BUILDERS, PLANNER_MODEL, readCapabilities } from "@/lib/models";
+import { PLANNER_MODEL, readCapabilities } from "@/lib/models";
+import { BUILDER_OPTIONS } from "@/lib/builders";
 import { requestApiKeys, withApiKeys } from "@/lib/keys-server";
 
 export async function GET(request: Request) {
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
       capabilities,
       models: {
         planner: PLANNER_MODEL,
-        builders: BUILDERS,
+        builders: BUILDER_OPTIONS,
       },
       ready: capabilities.groq || capabilities.google || capabilities.puter,
     });

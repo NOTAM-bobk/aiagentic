@@ -64,6 +64,11 @@ iframe served with COOP/COEP and embedded with `allow="cross-origin-isolated"`. 
 itself stays unisolated, which keeps Puter and preview iframes working. If a tab cannot be
 isolated, the files are still saved and the workspace falls back to Daytona in Auto mode.
 
+A StackBlitz key from [stackblitz.com/api-console](https://stackblitz.com/api-console) raises the
+runtime limits. Set `WEBCONTAINER_API_KEY` (or `STACKBLITZ_API_KEY`) on the server; `/api/runner-key`
+hands it to the isolated runner at boot, where the WebContainer API requires `configureAPIKey` to run
+in the browser. Treat that key as client-visible by design.
+
 A sandbox parks itself when the tab closes or a turn ends with nothing to preview, and Daytona's
 auto-stop catches the rest after ten idle minutes. Files survive; the next preview wakes it and
 re-mints the signed URL.
@@ -112,7 +117,10 @@ is what makes a deployment without env vars usable — paste your own Groq, Gemi
 Composio, or GitHub token and the agent uses it immediately.
 
 There is no starter-prompt gallery: type what you want into the `❯` prompt line and press Enter.
-Builder model, Puter model, and cloud/browser mode sit in the prompt's bottom bar.
+The builder selector lists four Gemini models (3.8 Flash, 2.5 Flash, 2.5 Pro, 2.5 Flash Lite),
+GPT-OSS 120B on Groq, and Puter. Puter adds its own free model picker (default, GPT-5 Nano,
+Gemini 2.5 Flash, DeepSeek Chat). Cloud/browser mode sits beside them. Drag the divider beside the
+preview to resize it (double-click resets, arrow keys work when focused).
 
 ## Environment variables on Vercel
 

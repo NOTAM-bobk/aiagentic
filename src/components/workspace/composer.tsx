@@ -5,6 +5,7 @@ import { Cloud, Frame, Sparkles, Square } from "lucide-react";
 import type { Capabilities } from "@/lib/models";
 import type { WorkspaceMode } from "@/lib/protocol";
 import { PUTER_MODELS } from "@/lib/puter-models";
+import { BUILDER_OPTIONS, resolveBuilder } from "@/lib/builders";
 import { cn } from "@/lib/utils";
 
 export function Composer({
@@ -52,11 +53,17 @@ export function Composer({
     onSend(text);
   }
 
-  const options = [
-    { id: "gemini", label: "gemini", ready: Boolean(capabilities?.google) },
-    { id: "groq", label: "groq", ready: Boolean(capabilities?.groq) },
-    { id: "puter", label: "puter · free", ready: true },
-  ];
+  const current = resolveBuilder(builder);
+  const options = BUILDER_OPTIONS.map((option) => ({
+    id: option.id,
+    label: option.label,
+    ready:
+      option.provider === "puter"
+        ? true
+        : option.provider === "gemini"
+          ? Boolean(capabilities?.google)
+          : Boolean(capabilities?.groq),
+  }));
 
   return (
     <div className="border-t border-line bg-paper-2/40 px-4 pb-4 pt-3 sm:px-8 sm:pb-6">
@@ -92,9 +99,9 @@ export function Composer({
               <span className="sr-only">Builder model</span>
               <select
                 aria-label="Builder model"
-                value={builder}
+                value={current.id}
                 onChange={(event) => onBuilder(event.target.value)}
-                className="max-w-[160px] cursor-pointer truncate border border-line bg-paper px-1.5 py-1.5 text-ink-soft transition-colors hover:border-line-strong hover:text-ink focus:outline-none"
+                className="max-w-[190px] cursor-pointer truncate border border-line bg-paper px-1.5 py-1.5 text-ink-soft transition-colors hover:border-line-strong hover:text-ink focus:outline-none"
               >
                 {options.map((option) => (
                   <option key={option.id} value={option.id} className="bg-paper-2 text-ink">
@@ -105,7 +112,7 @@ export function Composer({
               </select>
             </label>
 
-            {builder === "puter" && (
+            {current.provider === "puter" && (
               <label className="flex items-center gap-1.5 text-ink-faint">
                 <span className="sr-only">Puter model</span>
                 <select

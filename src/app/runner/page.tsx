@@ -70,7 +70,17 @@ export default function RunnerPage() {
 
     async function boot() {
       try {
-        const { WebContainer } = await import("@webcontainer/api");
+        const { WebContainer, configureAPIKey } = await import("@webcontainer/api");
+        // A StackBlitz API key raises the runtime limits. It is applied in the
+        // browser by design, and the key stays optional for local previews.
+        try {
+          const config = (await fetch("/api/runner-key", { cache: "no-store" }).then((response) =>
+            response.json(),
+          )) as { key?: string } | null;
+          if (config?.key) configureAPIKey(config.key);
+        } catch {
+          // No key: boot with the free default limits.
+        }
         instance = await WebContainer.boot();
         if (disposed) {
           instance.teardown();
