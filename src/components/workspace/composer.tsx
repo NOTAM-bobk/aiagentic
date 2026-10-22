@@ -68,7 +68,7 @@ export function Composer({
   return (
     <div className="border-t border-line bg-paper-2/40 px-3 pb-[max(0.9rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-8 sm:pb-6 sm:pt-3">
       <div className="mx-auto max-w-[47rem]">
-        <div className="border border-line bg-paper transition-colors focus-within:border-ember/50">
+        <div className="rounded-2xl border border-line bg-paper-2/70 shadow-[0_24px_80px_-48px_rgba(0,0,0,0.9)] transition-colors focus-within:border-ember/50 focus-within:bg-paper-2">
           <div className="flex items-start gap-2.5 px-3 pt-3 sm:gap-3 sm:px-3.5">
             <span aria-hidden="true" className="select-none pt-px text-[15px] leading-relaxed text-ember">
               ❯
@@ -95,14 +95,14 @@ export function Composer({
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-line px-2 py-2 font-mono text-[12px] sm:gap-x-3 sm:px-3">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-b-2xl border-t border-line/80 bg-paper-3/40 px-2 py-2 font-mono text-[12px] sm:gap-x-3 sm:px-3">
             <label className="flex items-center gap-1.5 text-ink-faint">
               <span className="sr-only">Builder model</span>
               <select
                 aria-label="Builder model"
                 value={current.id}
                 onChange={(event) => onBuilder(event.target.value)}
-                className="min-h-9 max-w-[148px] cursor-pointer truncate border border-line bg-paper px-1.5 py-1.5 text-ink-soft transition-colors hover:border-line-strong hover:text-ink focus:outline-none sm:min-h-0 sm:max-w-[190px]"
+                className="min-h-9 max-w-[148px] cursor-pointer truncate rounded-lg border border-transparent bg-transparent px-1.5 py-1.5 text-ink-soft transition-colors hover:bg-paper/60 hover:text-ink focus:outline-none sm:min-h-0 sm:max-w-[190px]"
               >
                 {options.map((option) => (
                   <option key={option.id} value={option.id} className="bg-paper-2 text-ink">
@@ -120,7 +120,7 @@ export function Composer({
                   aria-label="Puter model"
                   value={puterModel}
                   onChange={(event) => onPuterModel(event.target.value)}
-                  className="min-h-9 max-w-[148px] cursor-pointer truncate border border-line bg-paper px-1.5 py-1.5 text-ink-soft transition-colors hover:border-line-strong hover:text-ink focus:outline-none sm:min-h-0 sm:max-w-[160px]"
+                  className="min-h-9 max-w-[148px] cursor-pointer truncate rounded-lg border border-transparent bg-transparent px-1.5 py-1.5 text-ink-soft transition-colors hover:bg-paper/60 hover:text-ink focus:outline-none sm:min-h-0 sm:max-w-[160px]"
                 >
                   {PUTER_MODELS.map((model) => (
                     <option key={model.id || "default"} value={model.id} className="bg-paper-2 text-ink">
@@ -142,7 +142,7 @@ export function Composer({
                     : "Free browser runtime; add DAYTONA_API_KEY for cloud fallback"
                 }
                 className={cn(
-                  "inline-flex min-h-9 items-center gap-1.5 border px-2 py-1.5 transition-colors sm:min-h-8",
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2 py-1.5 transition-colors sm:min-h-8",
                   mode === "auto"
                     ? "border-ember/40 bg-ember/10 text-ember"
                     : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
@@ -157,7 +157,7 @@ export function Composer({
                 aria-label="Cloud runtime"
                 title={capabilities?.daytona ? "Always run files in a Daytona sandbox" : "Needs DAYTONA_API_KEY"}
                 className={cn(
-                  "inline-flex min-h-9 items-center gap-1.5 border px-2 py-1.5 transition-colors sm:min-h-8",
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2 py-1.5 transition-colors sm:min-h-8",
                   mode === "cloud"
                     ? "border-ember/40 bg-ember/10 text-ember"
                     : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
@@ -172,7 +172,7 @@ export function Composer({
                 aria-label="Browser runtime"
                 title="Runs in this browser with WebContainers"
                 className={cn(
-                  "inline-flex min-h-9 items-center gap-1.5 border px-2 py-1.5 transition-colors sm:min-h-8",
+                  "inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2 py-1.5 transition-colors sm:min-h-8",
                   mode === "local"
                     ? "border-ember/40 bg-ember/10 text-ember"
                     : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
@@ -188,7 +188,7 @@ export function Composer({
                 <button
                   type="button"
                   onClick={onStop}
-                  className="inline-flex min-h-9 items-center gap-2 border border-alert/50 bg-alert-soft px-3 text-[12px] text-alert transition-colors hover:border-alert sm:px-3.5"
+                  className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-alert/50 bg-alert-soft px-3 text-[12px] text-alert transition-colors hover:border-alert sm:px-3.5"
                 >
                   <Square className="h-2.5 w-2.5 fill-current" /> stop
                 </button>
@@ -197,7 +197,7 @@ export function Composer({
                   type="button"
                   onClick={submit}
                   disabled={!value.trim()}
-                  className="inline-flex min-h-9 items-center gap-2 border border-ember/50 bg-ember/10 px-3 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15 disabled:cursor-not-allowed disabled:border-line disabled:bg-transparent disabled:text-ink-faint sm:px-3.5"
+                  className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-ember/50 bg-ember/10 px-3 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15 disabled:cursor-not-allowed disabled:border-line disabled:bg-transparent disabled:text-ink-faint sm:px-3.5"
                 >
                   send <span className="text-[10px] opacity-70">⏎</span>
                 </button>

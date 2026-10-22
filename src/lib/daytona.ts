@@ -179,17 +179,25 @@ async function exists(sandbox: Sandbox, path: string): Promise<boolean> {
   return result.output.trim().endsWith("yes");
 }
 
-async function readPackage(sandbox: Sandbox): Promise<{ scripts: string[]; name: string } | null> {
+async function readPackage(
+  sandbox: Sandbox,
+): Promise<{ scripts: string[]; name: string; deps: string[] } | null> {
   if (!(await exists(sandbox, `${PROJECT_DIR}/package.json`))) return null;
   try {
     const raw = await sandbox.fs.downloadFile(`${PROJECT_DIR}/package.json`);
     const parsed = JSON.parse(raw.toString("utf8")) as {
       name?: string;
       scripts?: Record<string, string>;
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
-    return { scripts: Object.keys(parsed.scripts ?? {}), name: parsed.name ?? "app" };
+    const deps = [
+      ...Object.keys(parsed.dependencies ?? {}),
+      ...Object.keys(parsed.devDependencies ?? {}),
+    ];
+    return { scripts: Object.keys(parsed.scripts ?? {}), name: parsed.name ?? "app", deps };
   } catch {
-    return { scripts: [], name: "app" };
+    return { scripts: [], name: "app", deps: [] };
   }
 }
 
@@ -369,6 +377,7 @@ export type PreviewPlan = { root: string; command: string | null; runtime: strin
 export function planPreview(input: {
   builtDir: string | null;
   scripts: string[];
+  deps?: string[];
   runCommand?: string | null;
 }): PreviewPlan {
   const custom = input.runCommand?.trim().replace(/\s+/g, " ");
@@ -384,9 +393,13 @@ export function planPreview(input: {
     return { root: PROJECT_DIR, command: `PORT=${PREVIEW_PORT} npm start`, runtime: "app server" };
   }
   if (input.scripts.includes("dev")) {
+    // Next.js uses -H/-p, and rejects Vite-style flags.
+    const next = (input.deps ?? []).includes("next");
     return {
       root: PROJECT_DIR,
-      command: `PORT=${PREVIEW_PORT} npm run dev -- --host 0.0.0.0 --port ${PREVIEW_PORT}`,
+      command: next
+        ? `PORT=${PREVIEW_PORT} npm run dev -- -H 0.0.0.0 -p ${PREVIEW_PORT}`
+        : `PORT=${PREVIEW_PORT} npm run dev -- --host 0.0.0.0 --port ${PREVIEW_PORT}`,
       runtime: "dev server",
     };
   }
@@ -410,6 +423,7 @@ export async function startPreview(
   const plan = planPreview({
     builtDir: pkg ? await firstDir(sandbox, ["dist", "build", "out"]) : null,
     scripts: pkg?.scripts ?? [],
+    deps: pkg?.deps ?? [],
     runCommand: options.runCommand?.slice(0, 500) ?? null,
   });
   const { root, runtime } = plan;

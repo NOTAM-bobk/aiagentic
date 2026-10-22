@@ -134,19 +134,20 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-paper font-mono text-ink">
-      <header className="flex h-13 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-3 sm:gap-3 sm:px-4">
+      <header className="flex h-13 shrink-0 items-center gap-2 border-b border-line bg-night/80 px-3 backdrop-blur sm:gap-3 sm:px-4">
         <button
           type="button"
           onClick={() => setSidebarOpen(true)}
           aria-label="Open projects"
-          className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:hidden"
+          className="grid h-9 w-9 place-items-center rounded-xl border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:hidden"
         >
           <Menu className="h-4 w-4" />
         </button>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 rounded-xl border border-line bg-paper-2/60 px-2.5 py-1.5">
           <KilnMark className="h-4 w-4 text-ember" />
           <span className="hidden text-[13px] tracking-tight text-ink sm:inline">kiln</span>
+          <span className="hidden text-[10px] text-ink-faint sm:inline">⌄</span>
         </div>
 
         <button
@@ -228,7 +229,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             }}
             aria-label="New project"
             title="New project"
-            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 border border-ember/40 bg-ember/10 px-0 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15 sm:w-auto sm:px-3"
+            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-ember px-0 text-[12px] font-semibold text-paper transition-colors hover:bg-ember-bright sm:w-auto sm:px-3"
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">new</span>
@@ -240,7 +241,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               onClick={() => setActionsOpen((value) => !value)}
               aria-label="More tools"
               aria-expanded={actionsOpen}
-              className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
@@ -256,7 +257,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                   <button
                     type="button"
                     onClick={toggleTheme}
-                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
                   >
                     <Sun className="theme-sun h-3.5 w-3.5" />
                     <Moon className="theme-moon h-3.5 w-3.5" />
@@ -268,7 +269,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                       setActionsOpen(false);
                       openGit();
                     }}
-                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
                   >
                     <GitBranch className="h-3.5 w-3.5" /> GitHub repositories
                   </button>
@@ -278,7 +279,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                       setActionsOpen(false);
                       openIntegrations();
                     }}
-                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
                   >
                     <Plug className="h-3.5 w-3.5" /> connectors
                   </button>
@@ -288,7 +289,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                       setActionsOpen(false);
                       openSetup();
                     }}
-                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
                   >
                     <Settings2 className="h-3.5 w-3.5" /> setup
                   </button>
@@ -389,28 +390,33 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         </div>
       </div>
 
-      <nav className="flex shrink-0 border-t border-line bg-paper-2/40 font-mono text-[11.5px] lg:hidden" aria-label="Workspace views">
+      <nav
+        className="mx-3 mb-[max(0.5rem,env(safe-area-inset-bottom))] flex shrink-0 gap-1 rounded-2xl border border-line bg-paper-2/70 p-1 font-mono text-[11.5px] lg:hidden"
+        aria-label="Workspace views"
+      >
         <button
           type="button"
           onClick={() => setMobileView("chat")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-2 py-3 transition-colors",
-            mobileView === "chat" ? "text-ember" : "text-ink-faint",
+            "flex flex-1 flex-col items-center gap-1 rounded-xl py-2 transition-colors",
+            mobileView === "chat" ? "bg-paper-3 text-ink" : "text-ink-faint",
           )}
         >
-          <MessageSquare className="h-3 w-3" /> chat
+          <MessageSquare className="h-4 w-4" />
+          chat
         </button>
         <button
           type="button"
           onClick={() => setMobileView("site")}
           className={cn(
-            "flex flex-1 items-center justify-center gap-2 border-l border-line py-3 transition-colors",
-            mobileView === "site" ? "text-ember" : "text-ink-faint",
+            "relative flex flex-1 flex-col items-center gap-1 rounded-xl py-2 transition-colors",
+            mobileView === "site" ? "bg-paper-3 text-ink" : "text-ink-faint",
           )}
         >
-          <Monitor className="h-3 w-3" /> site
+          <Monitor className="h-4 w-4" />
+          preview
           {active && active.files.length > 0 && (
-            <span className="h-1 w-1 rounded-full bg-ember" />
+            <span className="absolute right-1/3 top-2 h-1 w-1 rounded-full bg-ember" />
           )}
         </button>
       </nav>
@@ -430,7 +436,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                 type="button"
                 onClick={() => setSidebarOpen(false)}
                 aria-label="Close"
-                className="grid h-9 w-9 place-items-center border border-line text-ink-faint"
+                className="grid h-9 w-9 place-items-center rounded-xl border border-line text-ink-faint"
               >
                 <X className="h-4 w-4" />
               </button>

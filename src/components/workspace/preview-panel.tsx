@@ -52,18 +52,18 @@ export function PreviewPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-paper">
-      <div className="flex items-center justify-between gap-2 border-b border-line bg-paper-2/30 px-3 py-1.5 font-mono">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 border-b border-line bg-night/60 px-2.5 py-1.5 font-mono">
+        <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-xl bg-paper-2/60 p-0.5">
           {TABS.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => onTab(item.id)}
               className={cn(
-                "min-h-8 border-b px-2 text-[11.5px] transition-colors",
+                "min-h-8 shrink-0 rounded-lg px-2.5 text-[11.5px] transition-colors",
                 tab === item.id
-                  ? "border-b-ember text-ember"
-                  : "border-b-transparent text-ink-faint hover:text-ink-soft",
+                  ? "bg-paper-3 text-ink"
+                  : "text-ink-faint hover:text-ink-soft",
               )}
             >
               {item.label}
@@ -87,7 +87,7 @@ export function PreviewPanel({
             type="button"
             onClick={onExport}
             disabled={!project || counts === 0 || project.files.some((file) => file.path === "package.json")}
-            className="inline-flex min-h-8 items-center gap-1.5 border border-line px-2.5 text-[11.5px] text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-[11.5px] text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Download className="h-3 w-3" /> export
           </button>

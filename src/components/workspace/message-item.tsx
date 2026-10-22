@@ -437,13 +437,15 @@ export function MessageItem({
 
   if (message.role === "user") {
     return (
-      <div className="flex gap-3 font-mono">
-        <span aria-hidden="true" className="select-none pt-px text-[14px] leading-relaxed text-ember">
-          ❯
-        </span>
-        <p className="min-w-0 flex-1 whitespace-pre-wrap text-[14px] leading-[1.7] text-ink">
-          {message.content}
-        </p>
+      <div className="animate-fade-up rounded-2xl border border-line bg-paper-2/80 px-4 py-3.5 font-mono shadow-[0_18px_60px_-40px_rgba(0,0,0,0.9)]">
+        <div className="flex gap-2.5">
+          <span aria-hidden="true" className="select-none pt-px text-[14px] leading-relaxed text-ember">
+            ❯
+          </span>
+          <p className="min-w-0 flex-1 whitespace-pre-wrap text-[14px] leading-[1.7] text-ink">
+            {message.content}
+          </p>
+        </div>
       </div>
     );
   }
@@ -458,7 +460,7 @@ export function MessageItem({
       {message.plan && <PlanCard plan={message.plan} />}
 
       {tools.length > 0 && (
-        <div className="border-l border-line pl-3.5">
+        <div className="rounded-xl border-l border-line pl-3.5">
           {tools.map((tool) => (
             <ToolRow key={tool.id} tool={tool} onConnected={onConnected} onGit={onGit} />
           ))}

@@ -60,7 +60,7 @@ function Sheet({
         onClick={onClose}
         className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]"
       />
-      <div className="relative flex h-full w-full max-w-md flex-col border-l border-line bg-paper shadow-2xl animate-fade-up">
+      <div className="relative flex h-full w-full max-w-md animate-fade-up flex-col rounded-l-2xl border-l border-line bg-paper shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
           <div className="font-mono">
             <h2 className="text-[14px] tracking-tight text-ink">{title.toLowerCase()}</h2>

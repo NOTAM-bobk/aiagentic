@@ -139,15 +139,21 @@ export default function RunnerPage() {
           if (!instance) throw new Error("The browser runtime is still starting.");
           devProcess?.kill();
           serverUrl = null;
-          devProcess = await instance.spawn("npm", [
-            "run",
-            "dev",
-            "--",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            "3000",
-          ]);
+          // Next.js needs -H/-p; Vite, Astro, SvelteKit and Nuxt use --host/--port.
+          let devArgs = ["run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"];
+          try {
+            const raw = await instance.fs.readFile("package.json", "utf-8");
+            const pkg = JSON.parse(raw) as {
+              dependencies?: Record<string, string>;
+              devDependencies?: Record<string, string>;
+            };
+            if (pkg.dependencies?.next || pkg.devDependencies?.next) {
+              devArgs = ["run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"];
+            }
+          } catch {
+            // No manifest: the generic flags work for Vite-style servers.
+          }
+          devProcess = await instance.spawn("npm", devArgs);
           devProcess.output
             .pipeTo(
               new WritableStream({
