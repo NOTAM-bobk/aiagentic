@@ -2,8 +2,6 @@
 
 import { useCallback, useState } from "react";
 import {
-  Cloud,
-  Frame,
   Loader2,
   Menu,
   MessageSquare,
@@ -20,7 +18,6 @@ import {
 } from "lucide-react";
 import { KilnMark } from "@/components/brand";
 import { useWorkspace } from "@/hooks/use-workspace";
-import { needsCloud } from "@/lib/protocol";
 import { bundleHtml, cn } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { PuterAccount } from "./puter-account";
@@ -65,12 +62,6 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
     setSetupOpen(false);
   }, []);
 
-  const cloud =
-    active?.mode === "cloud" ||
-    (active?.mode === "auto" && needsCloud(active?.files ?? [], active?.runCommand));
-  const status = cloud ? (active?.previewUrl ? "live" : "cloud") : "browser";
-  const busyPhase = workspace.busy ? workspace.phase || "working" : null;
-
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-paper font-mono text-ink">
       <header className="flex h-13 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-3 sm:gap-3 sm:px-4">
@@ -109,22 +100,6 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           spellCheck={false}
           className="min-w-0 max-w-[30vw] flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-[13px] text-ink transition-colors hover:border-line focus:border-line-strong focus:outline-none sm:max-w-[240px]"
         />
-
-        <span
-          className={cn(
-            "hidden items-center gap-1.5 border px-2 py-1 text-[10.5px] tracking-wide md:inline-flex",
-            busyPhase || cloud ? "border-ember/35 text-ember" : "border-line text-ink-faint",
-          )}
-        >
-          {busyPhase ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : cloud ? (
-            <Cloud className="h-3 w-3" />
-          ) : (
-            <Frame className="h-3 w-3" />
-          )}
-          {busyPhase ?? status}
-        </span>
 
         <div className="ml-auto flex items-center gap-2">
           <PuterAccount onNotify={workspace.setToast} />
@@ -202,6 +177,8 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               onBuilder={workspace.setBuilder}
               onPuterModel={workspace.setPuterModel}
               onMode={workspace.setMode}
+              onToolkitConnected={workspace.noteConnection}
+              onGitPush={workspace.pushToGitHub}
             />
           </div>
 

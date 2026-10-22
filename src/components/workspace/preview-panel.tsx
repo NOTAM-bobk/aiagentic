@@ -10,7 +10,7 @@ import {
   RefreshCw,
   Smartphone,
 } from "lucide-react";
-import { needsCloud, type Project } from "@/lib/protocol";
+import type { Project } from "@/lib/protocol";
 import { bundleHtml, cn } from "@/lib/utils";
 
 export type PanelTab = "preview" | "files" | "activity";
@@ -65,7 +65,7 @@ export function PreviewPanel({
         </div>
 
         <div className="flex items-center gap-1">
-          {tab === "files" && project?.sandboxId && (
+          {tab === "files" && project?.engine === "cloud" && project.sandboxId && (
             <button
               type="button"
               onClick={onRefreshFiles}
@@ -109,27 +109,39 @@ function PreviewTab({
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [nonce, setNonce] = useState(0);
 
-  const cloud =
-    project?.mode === "cloud" ||
-    (project?.mode === "auto" && needsCloud(project?.files ?? [], project?.runCommand));
+  const cloud = project?.engine === "cloud" || project?.mode === "cloud";
+  const cloudUrl = project?.previewUrl ?? null;
 
   const html = useMemo(() => {
-    if (!project || cloud) return "";
+    if (!project || cloudUrl) return "";
     return bundleHtml(project.files);
-  }, [project, cloud]);
+  }, [project, cloudUrl]);
 
-  const cloudUrl = cloud ? project?.previewUrl ?? null : null;
   const hasFiles = (project?.files.length ?? 0) > 0;
 
   if (!project || !hasFiles) {
     return <EmptyPanel title="no site yet" lines={["it renders here after the first build."]} />;
   }
 
-  if (!cloud && project.files.some((file) => file.path === "package.json")) {
+  if (!cloudUrl && !cloud && project.files.some((file) => file.path === "package.json")) {
     return (
       <EmptyPanel
         title="needs a runtime"
-        lines={["app projects install and build on a cloud machine.", "switch the prompt bar to auto or cloud to run it."]}
+        lines={[
+          "this project installs and builds to run.",
+          "start it to boot the free browser runtime, or switch to cloud.",
+        ]}
+        action={
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="inline-flex min-h-9 items-center gap-2 border border-ember/40 bg-ember/10 px-3 font-mono text-[12px] text-ember transition-colors hover:border-ember disabled:opacity-60"
+          >
+            {refreshing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            start runtime
+          </button>
+        }
       />
     );
   }

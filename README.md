@@ -35,10 +35,11 @@ prompt
   └─ decide      Groq · openai/gpt-oss-120b        → answer, ask with options, or plan a build
   └─ plan        only when building               → concept, stack, art direction, files
   └─ build       Gemini 3.8 Flash (or Puter)       → <think>, <say>, <edit>, <file>, <shell>, <run>, <ask>
-  └─ install     Daytona · npm/bun                 → dependencies for package.json projects
-  └─ bundle      Daytona · npm run build           → dist/ served, or a dev server started
-  └─ execute     Tavily · Daytona · Composio       → results fed into the next round
-  └─ preview     Daytona signed URL / srcDoc       → the running app
+  └─ install     WebContainer · npm               → free browser runtime, no machine billed
+  └─ bundle      WebContainer · npm run build     → dist/ served, or a dev server started
+  └─ execute     Tavily · WebContainer · Composio  → results fed into the next round
+  └─ push        Octokit · GitHub REST            → repo, branch, commit, push on approval
+  └─ preview     WebContainer URL / Daytona / srcDoc → the running app
   └─ name        Groq / Gemini                     → a short title for the conversation
 ```
 
@@ -51,11 +52,17 @@ makes the same call itself.
 
 Execution modes, chosen per turn:
 
-- **Auto** (default) — static work stays in the browser; anything with a manifest, a shell command,
-  or a server moves to the cloud for that turn. This is what keeps cloud usage down.
+- **Auto** (default) — static work stays in the browser, runnable projects use StackBlitz
+  WebContainers (free, in this tab), and Daytona is only the fallback when the browser runtime is
+  unavailable. That is what keeps cloud usage down.
 - **Cloud** — files live in a Daytona sandbox, commands actually run, preview is a signed URL.
-- **Browser** — files live in `localStorage`, the page is previewed with inlined CSS/JS. No keys,
-  no sandbox. Puter's browser models can plan and build here, so the app is usable with zero setup.
+- **Browser** — files live in `localStorage`; static pages are previewed with inlined CSS/JS and
+  app projects boot the browser runtime. No keys, no sandbox.
+
+StackBlitz WebContainers need a cross-origin isolated document, so they run in `/runner`, an
+iframe served with COOP/COEP and embedded with `allow="cross-origin-isolated"`. The workspace page
+itself stays unisolated, which keeps Puter and preview iframes working. If a tab cannot be
+isolated, the files are still saved and the workspace falls back to Daytona in Auto mode.
 
 A sandbox parks itself when the tab closes or a turn ends with nothing to preview, and Daytona's
 auto-stop catches the rest after ten idle minutes. Files survive; the next preview wakes it and
@@ -64,8 +71,8 @@ re-mints the signed URL.
 The builder speaks a small XML protocol instead of native tool calling, so Gemini, Groq, and
 Puter models behave identically: ` thinking` for visible reasoning, `<ask>` for a question with
 options, `<edit>` for a find/replace change to an existing file, `<file>` for a complete file,
-`<shell>` for one-off commands, `<run>` for a long-running server, and `<done>` for the closing
-summary. `src/lib/protocol.ts` parses it and applies edits (exact match, then a whitespace-tolerant
+`<shell>` for one-off commands, `<run>` for a long-running server, `<git>` for an approved GitHub
+push, and `<done>` for the closing summary. `src/lib/protocol.ts` parses it and applies edits (exact match, then a whitespace-tolerant
 line match); `src/lib/prompts.ts` defines the planner, builder, and title prompts.
 
 Follow-ups edit instead of rewriting: the model quotes the current lines it wants to change, so a
@@ -103,6 +110,7 @@ Development, then redeploy.
 | `TAVILY_API_KEY` | Optional | [app.tavily.com](https://app.tavily.com) | Live web search during builds |
 | `DAYTONA_API_KEY` | Optional | [app.daytona.io](https://app.daytona.io/dashboard/keys) | Sandboxes, commands, signed previews |
 | `COMPOSIO_API_KEY` | Optional | [app.composio.dev](https://app.composio.dev/developers) | GitHub / Supabase / Cloudflare / Vercel connectors |
+| `GITHUB_TOKEN` | Optional | [github.com/settings/tokens](https://github.com/settings/tokens) | Octokit pushes: create repo, branch, commit, push |
 | `NEXT_PUBLIC_SITE_URL` | Optional | your domain | Canonical and Open Graph URLs (Vercel's hostname is used if unset) |
 
 Optional overrides: `GROQ_PLANNER_MODEL`, `GOOGLE_BUILDER_MODEL`, `GROQ_BUILDER_MODEL`,
@@ -129,6 +137,11 @@ Notes:
 - The build is self-contained: no `vercel.json`, custom output directory, or extra build step.
 
 ## Notes and limits
+
+- GitHub pushes need `GITHUB_TOKEN` with `repo` scope. The agent emits a `<git action="push">`
+  block, the chat shows a **push to GitHub** button, and the push happens only after you click it.
+  There is no git binary inside WebContainers, so commits are created with the GitHub REST API
+  (blobs → tree → commit → ref) rather than locally.
 
 - Puter.js loads on the client and the header button signs you in once. Models and pricing are
   controlled by Puter's user-pays model; the builder is selected in the composer.

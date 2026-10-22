@@ -17,6 +17,8 @@ export function ChatPanel({
   onBuilder,
   onPuterModel,
   onMode,
+  onToolkitConnected,
+  onGitPush,
 }: {
   project: Project | null;
   capabilities: Capabilities | null;
@@ -27,6 +29,13 @@ export function ChatPanel({
   onBuilder: (builder: string) => void;
   onPuterModel: (model: string) => void;
   onMode: (mode: WorkspaceMode) => void;
+  onToolkitConnected: (projectId: string, messageId: string, name: string) => void;
+  onGitPush: (
+    projectId: string,
+    messageId: string,
+    toolId: string,
+    target: { repo: string; branch: string; message: string },
+  ) => Promise<void>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messages = project?.messages ?? [];
@@ -46,7 +55,20 @@ export function ChatPanel({
             <EmptyChat />
           ) : (
             messages.map((message) => (
-              <MessageItem key={message.id} message={message} phase={phase} onAnswer={onSend} />
+              <MessageItem
+                key={message.id}
+                message={message}
+                phase={phase}
+                onAnswer={onSend}
+                onConnected={(name) =>
+                  project && onToolkitConnected(project.id, message.id, name)
+                }
+                onGit={(toolId, target) =>
+                  project
+                    ? onGitPush(project.id, message.id, toolId, target)
+                    : Promise.resolve()
+                }
+              />
             ))
           )}
         </div>

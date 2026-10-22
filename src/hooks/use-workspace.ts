@@ -11,11 +11,11 @@ import {
   type Plan,
   type Project,
   type ProjectFile,
-  type RuntimeMode,
   type ToolEvent,
   type WorkspaceMode,
 } from "@/lib/protocol";
 import { loadPuter, puterChat } from "@/lib/puter";
+import { bootBrowserRunner, type BrowserRunnerApi } from "@/lib/webcontainer";
 import { slugTitle, truncate, uid } from "@/lib/utils";
 import type { Capabilities } from "@/lib/models";
 import { PUTER_MODELS } from "@/lib/puter-models";
@@ -81,6 +81,31 @@ function needsCloudRun(files: ProjectFile[], artifacts: ReturnType<typeof parseA
   return needsCloud(files) || commands;
 }
 
+const TOOLKIT_NAMES: Record<string, string> = {
+  github: "GitHub",
+  gitlab: "GitLab",
+  supabase: "Supabase",
+  cloudflare: "Cloudflare",
+  vercel: "Vercel",
+  notion: "Notion",
+  slack: "Slack",
+  linear: "Linear",
+  stripe: "Stripe",
+};
+
+function connectorName(slug: string): string {
+  return (
+    TOOLKIT_NAMES[slug] ??
+    slug
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
+}
+
+function tail(value: string, max = 2000): string {
+  return value.length <= max ? value : `…\n${value.slice(-max)}`;
+}
+
 function diffSnippet(find: string, replace: string): string {
   const cut = (value: string) => value.split("\n").slice(0, 10).join("\n");
   return `- ${cut(find)}\n+ ${cut(replace)}`;
@@ -141,6 +166,111 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       prev.map((project) => (project.id === id ? { ...project, ...patch, updatedAt: Date.now() } : project)),
     );
   }, []);
+
+  const appendNote = useCallback((projectId: string, messageId: string, note: string) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              messages: project.messages.map((message) =>
+                message.id === messageId && !message.content.includes(note)
+                  ? {
+                      ...message,
+                      content: [message.content.trim(), note].filter(Boolean).join("\n\n"),
+                    }
+                  : message,
+              ),
+            }
+          : project,
+      ),
+    );
+  }, []);
+
+  const patchTool = useCallback(
+    (projectId: string, messageId: string, toolId: string, patch: Partial<ToolEvent>) => {
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === projectId
+            ? {
+                ...project,
+                messages: project.messages.map((message) =>
+                  message.id === messageId
+                    ? {
+                        ...message,
+                        tools: (message.tools ?? []).map((tool) =>
+                          tool.id === toolId ? { ...tool, ...patch } : tool,
+                        ),
+                      }
+                    : message,
+                ),
+              }
+            : project,
+        ),
+      );
+    },
+    [],
+  );
+
+  const noteConnection = useCallback(
+    (projectId: string, messageId: string, name: string) => {
+      appendNote(projectId, messageId, `${name} is connected.`);
+    },
+    [appendNote],
+  );
+
+  /** Approved push: commit the project's files to the user's GitHub repo. */
+  const pushToGitHub = useCallback(
+    async (
+      projectId: string,
+      messageId: string,
+      toolId: string,
+      target: { repo: string; branch: string; message: string },
+    ) => {
+      const project = projectsRef.current.find((item) => item.id === projectId);
+      if (!project) return;
+
+      patchTool(projectId, messageId, toolId, {
+        status: "running",
+        label: `Pushing to ${target.repo}`,
+        detail: `${target.branch} · working`,
+      });
+
+      try {
+        const response = await fetch("/api/git", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...target, files: project.files }),
+        });
+        const data = (await response.json()) as {
+          error?: string;
+          repo?: string;
+          url?: string;
+          commitUrl?: string;
+          branch?: string;
+        };
+        if (!response.ok) throw new Error(data.error ?? "Push failed.");
+
+        patchTool(projectId, messageId, toolId, {
+          status: "ok",
+          label: `Pushed to ${data.repo}`,
+          detail: data.branch,
+          output: [data.url, data.commitUrl].filter(Boolean).join("\n"),
+          meta: { url: data.url },
+        });
+        appendNote(projectId, messageId, `Pushed to GitHub: ${data.url}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Push failed.";
+        patchTool(projectId, messageId, toolId, {
+          status: "error",
+          label: `Push to ${target.repo} failed`,
+          output: message,
+        });
+        setToast(message);
+      }
+    },
+    [appendNote, patchTool],
+  );
 
   const patchMessage = useCallback((projectId: string, messageId: string, patch: Partial<ChatMessage>) => {
     setProjects((prev) =>
@@ -337,8 +467,26 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   const refreshPreview = useCallback(
     async (projectOverride?: Project) => {
       const project = projectOverride ?? projectsRef.current.find((item) => item.id === activeIdRef.current);
-      if (!project || project.mode === "local") return null;
+      if (!project) return null;
       try {
+        const browserRuntime =
+          project.engine === "webcontainer" ||
+          (project.mode !== "cloud" && needsCloud(project.files, project.runCommand));
+
+        if (browserRuntime) {
+          const instance = await bootBrowserRunner();
+          await instance.mount(project.files);
+          if (project.files.some((file) => file.path === "package.json")) {
+            const install = await instance.install();
+            if (install.exitCode !== 0) throw new Error(tail(install.output) || "Install failed.");
+          }
+          const { url } = await instance.dev();
+          patchProject(project.id, { previewUrl: url, runtime: "webcontainer", engine: "webcontainer" });
+          return url;
+        }
+
+        if (project.mode === "local") return null;
+
         let sandboxId = project.sandboxId ?? null;
 
         // A parked machine wakes on demand; a deleted one is rebuilt from the files here.
@@ -392,7 +540,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
   const refreshFiles = useCallback(async () => {
     const project = projectsRef.current.find((item) => item.id === activeIdRef.current);
-    if (!project || project.mode === "local" || !project.sandboxId) return;
+    if (!project || project.engine !== "cloud" || !project.sandboxId) return;
     try {
       const response = await fetch("/api/sandbox", {
         method: "POST",
@@ -511,7 +659,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       let files: ProjectFile[] = project.files;
       let sandboxId = project.sandboxId ?? null;
       const preference: WorkspaceMode = project.mode;
-      let mode: RuntimeMode = preference === "auto" ? "local" : preference;
+      let engine: "cloud" | "webcontainer" | null = project.engine ?? null;
+      let runner: BrowserRunnerApi | null = null;
       let previewUrl = project.previewUrl ?? null;
       let runCommand = project.runCommand ?? null;
       const builder = project.builder;
@@ -532,7 +681,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       };
 
       const ensureSandbox = async (): Promise<string | null> => {
-        if (mode === "local") return null;
+        if (engine !== "cloud") return null;
         if (sandboxId) return sandboxId;
         const toolId = pushTool({ kind: "sandbox", label: "Starting Daytona sandbox", detail: "isolated linux vm" });
         setPhase("Warming up a sandbox");
@@ -558,10 +707,96 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         }
       };
 
+      const ensureRunner = async (): Promise<BrowserRunnerApi> => {
+        if (runner) return runner;
+        const toolId = pushTool({
+          kind: "sandbox",
+          label: "Starting the browser runtime",
+          detail: "webcontainer",
+        });
+        setPhase("Starting the browser runtime");
+        try {
+          runner = await bootBrowserRunner();
+          resolveTool(toolId, { status: "ok", label: "Browser runtime ready" });
+          return runner;
+        } catch (error) {
+          resolveTool(toolId, {
+            status: "error",
+            output: error instanceof Error ? error.message : "The browser runtime failed.",
+          });
+          throw error;
+        }
+      };
+
       /** Installs dependencies and bundles the app when the project asks for it. */
       const prepareRuntime = async (): Promise<boolean> => {
-        if (mode !== "cloud" || !sandboxId) return true;
         const pkg = files.find((file) => file.path === "package.json");
+
+        if (engine === "webcontainer") {
+          if (!pkg) return true;
+          let scripts: string[] = [];
+          try {
+            scripts = Object.keys(
+              (JSON.parse(pkg.content) as { scripts?: Record<string, string> }).scripts ?? {},
+            );
+          } catch {
+            // The install step reports a malformed manifest.
+          }
+
+          setPhase("Installing dependencies");
+          const installTool = pushTool({
+            kind: "shell",
+            label: "Installing dependencies",
+            detail: "npm install · browser runtime",
+          });
+          try {
+            const instance = await ensureRunner();
+            const result = await instance.install();
+            if (result.exitCode !== 0) {
+              throw new Error(tail(result.output) || "npm install failed");
+            }
+            resolveTool(installTool, {
+              status: "ok",
+              label: "Dependencies installed",
+              detail: "browser runtime",
+              output: tail(result.output) || undefined,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Install failed";
+            resolveTool(installTool, { status: "error", output: message });
+            observations.push(`Dependency install failed in the browser runtime.\n${message}`);
+            return false;
+          }
+
+          if (!scripts.includes("build")) return true;
+
+          setPhase("Bundling the app");
+          const buildTool = pushTool({
+            kind: "shell",
+            label: "Bundling the app",
+            detail: "npm run build · browser runtime",
+          });
+          try {
+            const instance = await ensureRunner();
+            const result = await instance.build();
+            if (result.exitCode !== 0) {
+              throw new Error(tail(result.output, 3000) || "Build failed");
+            }
+            resolveTool(buildTool, {
+              status: "ok",
+              label: "Bundle built",
+              output: tail(result.output) || undefined,
+            });
+            return true;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Build failed";
+            resolveTool(buildTool, { status: "error", output: message });
+            observations.push(`The build failed in the browser runtime.\n${message}`);
+            return false;
+          }
+        }
+
+        if (engine !== "cloud" || !sandboxId) return true;
         if (!pkg) return true;
 
         let scripts: string[] = [];
@@ -641,7 +876,38 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       };
 
       const startPreviewNow = async (): Promise<string | null> => {
-        if (mode !== "cloud" || !sandboxId) return null;
+        if (engine === "webcontainer") {
+          setPhase("Starting the preview");
+          const toolId = pushTool({
+            kind: "run",
+            label: "Starting the dev server",
+            detail: "browser runtime",
+          });
+          try {
+            const instance = await ensureRunner();
+            const { url } = await instance.dev();
+            previewUrl = url;
+            patchProject(projectId, {
+              previewUrl: url,
+              runtime: "webcontainer",
+              engine: "webcontainer",
+            });
+            resolveTool(toolId, {
+              status: "ok",
+              label: "Preview live · webcontainer",
+              output: url,
+            });
+            return url;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Preview failed";
+            resolveTool(toolId, { status: "error", output: message });
+            observations.push(`The browser preview could not start. ${message}`);
+            setToast(message);
+            return null;
+          }
+        }
+
+        if (engine !== "cloud" || !sandboxId) return null;
         setPhase("Starting the preview");
         const toolId = pushTool({
           kind: "run",
@@ -926,13 +1192,26 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           ];
           const wrote = `Wrote ${incoming.length} file${incoming.length === 1 ? "" : "s"}`;
 
-          // Auto: a static page stays in the browser, anything runnable goes to the cloud.
-          if (preference === "auto") {
-            const merged = [
-              ...files.filter((file) => !incoming.some((next) => next.path === file.path)),
-              ...incoming,
-            ];
-            mode = needsCloudRun(merged, artifacts) ? "cloud" : "local";
+          const merged = [
+            ...files.filter((file) => !incoming.some((next) => next.path === file.path)),
+            ...incoming,
+          ];
+
+          // Auto: a static page stays in the browser, a JS project uses the free
+          // WebContainer, and anything else falls back to the cloud when it can.
+          const webContainerFriendly =
+            !artifacts.some((artifact) => artifact.kind === "run") &&
+            !runCommand &&
+            !merged.some((file) =>
+              ["requirements.txt", "Cargo.toml", "go.mod", "Gemfile"].includes(file.path),
+            );
+
+          if (!needsCloudRun(merged, artifacts)) {
+            engine = null;
+          } else if (preference === "cloud" || (!webContainerFriendly && capabilities?.daytona)) {
+            engine = "cloud";
+          } else {
+            engine = "webcontainer";
           }
 
           if (incoming.length === 0) {
@@ -941,7 +1220,33 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             break;
           }
 
-          if (mode === "cloud") {
+          if (engine === "webcontainer") {
+            try {
+              const instance = await ensureRunner();
+              await instance.mount(merged);
+              mergeFiles(incoming);
+              resolveTool(writeTool, {
+                status: "ok",
+                label: `Wrote ${merged.length} file${merged.length === 1 ? "" : "s"}`,
+                detail: "browser runtime",
+              });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "The browser runtime failed";
+              observations.push(`The browser runtime was unavailable (${message}).`);
+              if (preference === "auto" && capabilities?.daytona) {
+                engine = "cloud";
+                observations.push("Continuing on a cloud machine for this turn.");
+              } else {
+                // Keep the code: save it in the browser workspace even when it cannot run here.
+                engine = null;
+                observations.push(
+                  "The free browser runtime was unavailable, so the code was saved but not started.",
+                );
+              }
+            }
+          }
+
+          if (engine === "cloud") {
             const hadSandbox = Boolean(sandboxId);
             const id = await ensureSandbox();
             if (id) {
@@ -973,12 +1278,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 throw error;
               }
             } else {
-              mode = "local";
+              engine = null;
               mergeFiles(incoming);
               resolveTool(writeTool, { status: "ok", label: wrote });
               observations.push("Daytona was unavailable, so files were saved in the browser workspace instead.");
             }
-          } else {
+          } else if (engine === null) {
             mergeFiles(incoming);
             resolveTool(writeTool, { status: "ok", label: wrote });
           }
@@ -987,13 +1292,17 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           for (const artifact of artifacts) {
             if (artifact.kind === "delete") {
               const toolId = pushTool({ kind: "delete", label: `Removing ${artifact.path}` });
-              if (mode === "cloud" && sandboxId) {
+              if (engine === "cloud" && sandboxId) {
                 await fetch("/api/sandbox", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
                   body: JSON.stringify({ action: "delete", sandboxId, path: artifact.path }),
                   signal: controller.signal,
                 }).catch(() => undefined);
+              } else if (engine === "webcontainer") {
+                await ensureRunner()
+                  .then((instance) => instance.exec(`rm -f -- '${artifact.path.replace(/'/g, "")}'`))
+                  .catch(() => undefined);
               }
               files = files.filter((file) => file.path !== artifact.path);
               patchProject(projectId, { files });
@@ -1021,8 +1330,17 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             }
 
             if (artifact.kind === "shell") {
-              const toolId = pushTool({ kind: "shell", label: artifact.command, detail: mode === "cloud" ? "daytona" : "not available in browser mode" });
-              if (mode === "cloud" && sandboxId) {
+              const toolId = pushTool({
+                kind: "shell",
+                label: artifact.command,
+                detail:
+                  engine === "cloud"
+                    ? "daytona"
+                    : engine === "webcontainer"
+                      ? "browser runtime"
+                      : "no runtime",
+              });
+              if (engine === "cloud" && sandboxId) {
                 try {
                   const response = await fetch("/api/sandbox", {
                     method: "POST",
@@ -1040,9 +1358,45 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                     output: error instanceof Error ? error.message : "Command failed",
                   });
                 }
+              } else if (engine === "webcontainer") {
+                try {
+                  const instance = await ensureRunner();
+                  const data = await instance.exec(artifact.command);
+                  observations.push(`$ ${artifact.command}\n${data.output}`);
+                  resolveTool(toolId, {
+                    status: data.exitCode === 0 ? "ok" : "error",
+                    output: data.output,
+                  });
+                } catch (error) {
+                  resolveTool(toolId, {
+                    status: "error",
+                    output: error instanceof Error ? error.message : "Command failed",
+                  });
+                }
               } else {
-                resolveTool(toolId, { status: "error", output: "Shell commands need cloud mode." });
+                resolveTool(toolId, {
+                  status: "error",
+                  output: "Commands need a runtime. Ask for a runnable project or switch the prompt bar to cloud.",
+                });
               }
+            }
+
+            if (artifact.kind === "git") {
+              pushTool({
+                kind: "git",
+                label: `Push to ${artifact.repo}`,
+                detail: `${artifact.branch} · needs your approval`,
+                status: "pending",
+                meta: {
+                  git: true,
+                  repo: artifact.repo,
+                  branch: artifact.branch,
+                  message: artifact.message,
+                },
+              });
+              observations.push(
+                `A git push to ${artifact.repo} (${artifact.branch}) is waiting for the user's approval.`,
+              );
             }
 
             if (artifact.kind === "action") {
@@ -1056,26 +1410,57 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             }
 
             if (artifact.kind === "connect") {
+              const name = connectorName(artifact.toolkit);
               const toolId = pushTool({
                 kind: "connect",
-                label: `Connect ${artifact.toolkit}`,
-                detail: artifact.note || "composio",
+                label: `Connect ${name}`,
+                detail: "needs your login",
+                status: "pending",
               });
               try {
-                const response = await fetch("/api/integrations/connect", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({
-                    toolkit: artifact.toolkit,
-                    userId: getUserId(),
-                    callbackUrl: window.location.href,
-                  }),
-                  signal: controller.signal,
-                });
-                if (!response.ok) throw new Error(await errorFromResponse(response));
-                const data = (await response.json()) as { redirectUrl: string };
-                observations.push(`${artifact.toolkit} connection link ready: ${data.redirectUrl}`);
-                resolveTool(toolId, { status: "ok", output: data.redirectUrl, meta: { url: data.redirectUrl } });
+                const directory = (await fetch(
+                  `/api/integrations?userId=${encodeURIComponent(getUserId())}`,
+                  { cache: "no-store", signal: controller.signal },
+                )
+                  .then((response) => (response.ok ? response.json() : null))
+                  .catch(() => null)) as { toolkits?: { slug: string; connected: boolean }[] } | null;
+
+                const alreadyConnected = Boolean(
+                  directory?.toolkits?.find((item) => item.slug === artifact.toolkit)?.connected,
+                );
+
+                if (alreadyConnected) {
+                  resolveTool(toolId, {
+                    status: "ok",
+                    label: `${name} is already connected`,
+                    detail: "connected",
+                  });
+                  appendNote(projectId, assistant.id, `${name} is already connected.`);
+                  observations.push(`${name} is already connected; no login is needed.`);
+                } else {
+                  const response = await fetch("/api/integrations/connect", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                      toolkit: artifact.toolkit,
+                      userId: getUserId(),
+                      callbackUrl: window.location.href,
+                    }),
+                    signal: controller.signal,
+                  });
+                  if (!response.ok) throw new Error(await errorFromResponse(response));
+                  const data = (await response.json()) as { redirectUrl: string };
+                  resolveTool(toolId, {
+                    status: "pending",
+                    label: `Connect ${name}`,
+                    detail: "needs your login",
+                    output: artifact.note || undefined,
+                    meta: { url: data.redirectUrl, toolkit: artifact.toolkit, connect: true },
+                  });
+                  observations.push(
+                    `${name} is not connected yet. The user has a login button in this message; once it succeeds, continue with their request.`,
+                  );
+                }
               } catch (error) {
                 resolveTool(toolId, {
                   status: "error",
@@ -1098,7 +1483,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             break;
           }
 
-          if (mode === "cloud" && sandboxId) {
+          if (engine) {
             await startPreviewNow();
           }
 
@@ -1107,9 +1492,13 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           summaryText = doneArtifact?.kind === "done" ? doneArtifact.summary : "";
           if (!hasFollowUp || summaryText) {
             if (!summaryText) {
-              summaryText = `Built ${files.length} file${
-                files.length === 1 ? "" : "s"
-              }. The preview is live on the right — ask for any change and I'll edit the running site.`;
+              summaryText = engine
+                ? `Built ${files.length} file${
+                    files.length === 1 ? "" : "s"
+                  }. The preview is live on the right — ask for any change and I'll edit it.`
+                : `Built ${files.length} file${
+                    files.length === 1 ? "" : "s"
+                  }. This tab could not start a runtime for it, so the code is saved but not running.`;
             }
             patchMessage(projectId, assistant.id, { content: summaryText });
             break;
@@ -1123,11 +1512,11 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           raw: undefined,
           content: summaryText || "Done. The site is in your workspace.",
         });
-        patchProject(projectId, { previewUrl, sandboxId, mode: preference, builder, title, runCommand });
+        patchProject(projectId, { previewUrl, sandboxId, engine, mode: preference, builder, title, runCommand });
         void nameChat(projectId, prompt, summaryText, project.messages.length <= 1, builder);
 
         // Nothing to look at: park the machine now rather than keep it warm.
-        if (preference === "auto" && mode === "cloud" && !previewUrl && sandboxId) {
+        if (preference === "auto" && engine === "cloud" && !previewUrl && sandboxId) {
           parkSandbox(sandboxId);
         }
       } catch (error) {
@@ -1144,7 +1533,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         setPhase("");
       }
     },
-    [nameChat, parkSandbox, patchMessage, patchProject],
+    [appendNote, capabilities, nameChat, parkSandbox, patchMessage, patchProject],
   );
 
   const send = useCallback(
@@ -1216,6 +1605,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setBuilder,
     setMode,
     setPuterModel,
+    noteConnection,
+    pushToGitHub,
     refreshPreview,
     refreshFiles,
     refreshCapabilities,

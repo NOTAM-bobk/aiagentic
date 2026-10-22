@@ -29,6 +29,13 @@ export type ThinkArtifact = { kind: "think"; text: string };
 export type AskArtifact = { kind: "ask"; question: string; options: string[] };
 export type RunArtifact = { kind: "run"; command: string };
 export type TitleArtifact = { kind: "title"; title: string };
+export type GitArtifact = {
+  kind: "git";
+  action: "push";
+  repo: string;
+  branch: string;
+  message: string;
+};
 
 export type Artifact =
   | FileArtifact
@@ -42,11 +49,12 @@ export type Artifact =
   | ThinkArtifact
   | AskArtifact
   | RunArtifact
-  | TitleArtifact;
+  | TitleArtifact
+  | GitArtifact;
 
 export type ToolEvent = {
   id: string;
-  kind: "plan" | "search" | "write" | "edit" | "shell" | "run" | "connect" | "delete" | "sandbox";
+  kind: "plan" | "search" | "write" | "edit" | "shell" | "run" | "connect" | "git" | "delete" | "sandbox";
   label: string;
   detail?: string;
   status: "pending" | "running" | "ok" | "error";
@@ -98,6 +106,8 @@ export type Project = {
   /** Model id for Puter builds. Empty means Puter's current default. */
   puterModel?: string;
   previewUrl?: string | null;
+  /** Where the last build ran: a cloud machine, the browser runtime, or nowhere. */
+  engine?: "cloud" | "webcontainer" | null;
   /** Long-running server the agent asked for, e.g. `python3 app.py`. */
   runCommand?: string | null;
   /** Short label for how the preview is being served: static, vite dev, node. */
@@ -105,7 +115,7 @@ export type Project = {
 };
 
 const TAG =
-  /<\s*(file|edit|say|search|shell|connect|action|delete|done|think|ask|run|title)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
+  /<\s*(file|edit|say|search|shell|connect|action|delete|done|think|ask|run|title|git)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
 
 function attr(attrs: string, name: string): string {
   // Accept single or double quotes: models occasionally switch.
@@ -192,6 +202,26 @@ export function parseArtifacts(raw: string): Artifact[] {
     } else if (tag === "title") {
       const title = body.trim().replace(/^["'“”]+|["'“”]+$/g, "").slice(0, 64);
       if (title) artifacts.push({ kind: "title", title });
+    } else if (tag === "git") {
+      const action = attr(attrs, "action").toLowerCase();
+      const repo = attr(attrs, "repo")
+        .replace(/^https?:\/\/github\.com\//i, "")
+        .replace(/\.git$/i, "")
+        .split("/")
+        .pop()
+        ?.replace(/[^A-Za-z0-9_.-]/g, "")
+        .slice(0, 80);
+      const branch =
+        (attr(attrs, "branch") || "main").replace(/[^A-Za-z0-9_./-]/g, "").slice(0, 80) || "main";
+      if (action === "push" && repo) {
+        artifacts.push({
+          kind: "git",
+          action: "push",
+          repo,
+          branch,
+          message: body.trim().slice(0, 240) || "Update from Kiln",
+        });
+      }
     }
   }
 

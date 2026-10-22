@@ -129,8 +129,8 @@ export function Composer({
                 onClick={() => onMode("auto")}
                 title={
                   capabilities?.daytona
-                    ? "Browser for static work, cloud only when a project needs a machine"
-                    : "Needs DAYTONA_API_KEY for cloud work"
+                    ? "Free browser runtime first, cloud only when it is needed"
+                    : "Free browser runtime; add DAYTONA_API_KEY for cloud fallback"
                 }
                 className={cn(
                   "inline-flex min-h-8 items-center gap-1.5 border px-2 py-1.5 transition-colors",
@@ -159,7 +159,7 @@ export function Composer({
               <button
                 type="button"
                 onClick={() => onMode("local")}
-                title="Files stay in this browser"
+                title="Runs in this browser with WebContainers"
                 className={cn(
                   "inline-flex min-h-8 items-center gap-1.5 border px-2 py-1.5 transition-colors",
                   mode === "local"
