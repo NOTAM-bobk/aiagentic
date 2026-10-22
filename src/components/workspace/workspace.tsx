@@ -14,7 +14,9 @@ import {
   PanelRightOpen,
   Plug,
   Plus,
+  Rocket,
   Settings2,
+  SlidersHorizontal,
   Sun,
   Moon,
   Trash2,
@@ -28,6 +30,7 @@ import { PuterAccount } from "./puter-account";
 import { PreviewPanel, type PanelTab } from "./preview-panel";
 import { GitSheet, IntegrationsSheet, SetupSheet } from "./sheets";
 import { DeploySheet } from "./deploy-sheet";
+import { ModelSettingsSheet } from "./model-settings-sheet";
 
 export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const workspace = useWorkspace({ initialPrompt });
@@ -41,6 +44,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [gitOpen, setGitOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [redeploying, setRedeploying] = useState(false);
   const [syncFiles, setSyncFiles] = useState(false);
@@ -111,17 +115,27 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
     setSetupOpen(true);
     setIntegrationsOpen(false);
     setGitOpen(false);
+    setModelSettingsOpen(false);
   }, []);
 
   const openGit = useCallback(() => {
     setGitOpen(true);
     setIntegrationsOpen(false);
     setSetupOpen(false);
+    setModelSettingsOpen(false);
   }, []);
 
   const openIntegrations = useCallback(() => {
     setIntegrationsOpen(true);
     setSetupOpen(false);
+    setModelSettingsOpen(false);
+  }, []);
+
+  const openModelSettings = useCallback(() => {
+    setModelSettingsOpen(true);
+    setSetupOpen(false);
+    setIntegrationsOpen(false);
+    setGitOpen(false);
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -147,10 +161,11 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           <Menu className="h-4 w-4" />
         </button>
 
-        <div className="flex items-center gap-1.5 rounded-xl border border-line bg-paper-2/60 px-2.5 py-1.5">
+        {/* The mark only earns the space on tablets and wider. */}
+        <div className="hidden items-center gap-1.5 rounded-xl border border-line bg-paper-2/60 px-2.5 py-1.5 sm:flex">
           <KilnMark className="h-4 w-4 text-ember" />
-          <span className="hidden text-[13px] tracking-tight text-ink sm:inline">kiln</span>
-          <span className="hidden text-[10px] text-ink-faint sm:inline">⌄</span>
+          <span className="text-[13px] tracking-tight text-ink">kiln</span>
+          <span className="text-[10px] text-ink-faint">⌄</span>
         </div>
 
         <button
@@ -230,6 +245,16 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                     type="button"
                     onClick={() => {
                       setActionsOpen(false);
+                      openModelSettings();
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" /> model settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
                       openSetup();
                     }}
                     className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
@@ -253,6 +278,17 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             )}
           </div>
 
+          {/* Phones get publish as the one filled action; new projects live in the drawer. */}
+          <button
+            type="button"
+            onClick={() => setDeployOpen(true)}
+            aria-label="Deploy site"
+            title={active?.deploy ? `Redeploy ${active.deploy.host}` : "Deploy site"}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-transparent bg-ember text-paper transition-colors hover:bg-ember-bright sm:hidden"
+          >
+            <Rocket className="h-3.5 w-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={() => {
@@ -261,10 +297,10 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             }}
             aria-label="New project"
             title="New project"
-            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-ember px-0 text-[12px] font-semibold text-paper transition-colors hover:bg-ember-bright sm:w-auto sm:px-3"
+            className="hidden h-9 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-ember px-0 text-[12px] font-semibold text-paper transition-colors hover:bg-ember-bright sm:inline-flex sm:w-auto sm:px-3"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">new</span>
+            <span>new</span>
           </button>
         </div>
       </header>
@@ -421,6 +457,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             <ProjectList
               projects={projects}
               activeId={active?.id ?? null}
+              showLabel={false}
               onSelect={(id) => {
                 workspace.selectProject(id);
                 setSidebarOpen(false);
@@ -468,6 +505,12 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         onOpenSetup={openSetup}
         onToast={workspace.setToast}
       />
+      <ModelSettingsSheet
+        open={modelSettingsOpen}
+        onClose={() => setModelSettingsOpen(false)}
+        settings={workspace.modelSettings}
+        onSave={workspace.saveModelSettings}
+      />
 
       {!hydrated && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-paper font-mono text-[11px] text-ink-faint">
@@ -503,17 +546,22 @@ function ProjectList({
   onSelect,
   onDelete,
   onNew,
+  showLabel = true,
 }: {
   projects: ReturnType<typeof useWorkspace>["projects"];
   activeId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   onNew: () => void;
+  /** The mobile drawer already has a "sites" heading of its own. */
+  showLabel?: boolean;
 }) {
   return (
     <>
       <div className="flex-1 overflow-y-auto py-3">
-        <p className="px-4 pb-3 text-[10.5px] uppercase tracking-[0.14em] text-ink-faint">sites</p>
+        {showLabel && (
+          <p className="px-4 pb-3 text-[10.5px] uppercase tracking-[0.14em] text-ink-faint">sites</p>
+        )}
         {projects.length === 0 ? (
           <p className="px-4 text-[12.5px] text-ink-faint">nothing yet</p>
         ) : (

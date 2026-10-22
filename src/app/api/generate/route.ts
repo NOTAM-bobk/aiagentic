@@ -5,6 +5,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { DEFAULT_GEMINI_MODEL, DEFAULT_GROQ_MODEL, resolveBuilder } from "@/lib/builders";
 import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 import { BUILDER_PROMPT, PLAN_MODE_PROMPT, buildEditContext } from "@/lib/prompts";
+import { composeSystemPrompt, sanitizeModelSettings } from "@/lib/model-settings";
 import type { Plan, ProjectFile } from "@/lib/protocol";
 import { truncate } from "@/lib/utils";
 import { sanitizeSkills } from "@/lib/skills";
@@ -25,6 +26,8 @@ type Body = {
   planMode?: boolean;
   recentDirections?: string[];
   images?: { path: string; alt?: string }[];
+  /** Controls and system prompt from the model settings panel. */
+  settings?: unknown;
 };
 
 const MAX_FILE_CHARS = 14_000;
@@ -67,6 +70,7 @@ async function run(request: Request) {
   }
 
   const planMode = Boolean(body.planMode);
+  const settings = sanitizeModelSettings(body.settings);
   const history: ModelMessage[] = (body.history ?? []).slice(-6).map((message) => ({
     role: message.role,
     content: truncate(digest(message.content), 700),
@@ -166,10 +170,12 @@ async function run(request: Request) {
 
   const result = streamText({
     model,
-    system: planMode ? PLAN_MODE_PROMPT : BUILDER_PROMPT,
+    system: composeSystemPrompt(planMode ? PLAN_MODE_PROMPT : BUILDER_PROMPT, settings),
     messages,
-    temperature: planMode ? 0.75 : 0.8,
-    maxOutputTokens: planMode ? 1600 : 8192,
+    temperature: settings.temperature,
+    maxOutputTokens: planMode
+      ? Math.min(settings.maxOutputTokens, 2048)
+      : settings.maxOutputTokens,
     maxRetries: 1,
     onError: ({ error }) => console.error("[kiln] generate failed", error),
   });

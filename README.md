@@ -87,6 +87,13 @@ the planner, builder, critic, plan-mode, and title prompts.
 Prompt and build are one control, not two apps. **Plan** talks: it reasons about the idea, the
 trade-offs, and the next screen, and writes nothing. **Build** writes files and runs the project.
 The switcher sits in the prompt bar, so a plan can become a build without leaving the conversation.
+Both prompts ask the agent to question its own first answer on every turn — is this the best
+version, what would improve it, what is still weak — and to fix that before it finishes.
+
+**Model settings** in the tools menu exposes the temperature, output ceiling, rounds per turn,
+self-review / web-research / image toggles, and the system prompt (appended to the built-in one by
+default, or replacing it if you accept the protocol risk). The values live in this browser, persist
+across projects, and are re-sanitised by the server on every request.
 
 Nothing is called finished on the first pass. Once the preview is live the workspace runs static
 and live checks (`/api/verify`), searches the web for current craft on this kind of site when

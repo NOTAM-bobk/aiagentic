@@ -28,11 +28,16 @@ import type { Capabilities } from "@/lib/models";
 import { PUTER_MODELS } from "@/lib/puter-models";
 import { readKeys } from "@/lib/keys-client";
 import { readSkills, sanitizeSkills, writeSkills, type Skill } from "@/lib/skills";
+import {
+  composeSystemPrompt,
+  readModelSettings,
+  writeModelSettings,
+  type ModelSettings,
+} from "@/lib/model-settings";
 import { loadSessionTools } from "@/lib/composio-session-client";
 import { resolveBuilder } from "@/lib/builders";
 
 const STORAGE_KEY = "kiln.workspace.v1";
-const MAX_ROUNDS = 4;
 
 type Stored = { projects: Project[]; activeId: string | null };
 
@@ -194,6 +199,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   const [capsLoaded, setCapsLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [modelSettings, setModelSettings] = useState<ModelSettings>(() => readModelSettings());
 
   const projectsRef = useRef<Project[]>([]);
   const activeIdRef = useRef<string | null>(null);
@@ -320,6 +326,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     },
     [appendNote, patchTool],
   );
+
+  const saveModelSettings = useCallback((next: ModelSettings) => {
+    const clean = writeModelSettings(next);
+    setModelSettings(clean);
+    setToast("Model settings saved");
+  }, []);
 
   const saveSkills = useCallback((next: Skill[]) => {
     const clean = sanitizeSkills(next);
@@ -782,6 +794,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   const runAgent = useCallback(
     async (project: Project, prompt: string) => {
       const projectId = project.id;
+      const settings = modelSettings;
+      const maxRounds = Math.max(1, Math.min(settings.maxRounds, 6));
       const controller = new AbortController();
       abortRef.current = controller;
       setBusy(true);
@@ -862,7 +876,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             await puterChat({
               model: project.puterModel ?? PUTER_MODELS[0].id,
               messages: [
-                { role: "system", content: PLAN_MODE_PROMPT },
+                { role: "system", content: composeSystemPrompt(PLAN_MODE_PROMPT, settings) },
                 ...recent.slice(-6).map((message) => ({
                   role: message.role,
                   content: truncate(message.content, 900),
@@ -882,6 +896,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 planMode: true,
                 files: project.files,
                 history: recent,
+                settings,
               }),
               signal: controller.signal,
             });
@@ -1284,7 +1299,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         let summaryText = "";
         let tasks: Task[] = [];
         let reviewed = false;
-        for (let round = 1; round <= MAX_ROUNDS; round += 1) {
+        for (let round = 1; round <= maxRounds; round += 1) {
           setPhase(round > 1 ? "Refining" : plan ? "Building" : "Thinking");
           raw = "";
           patchMessage(projectId, assistant.id, { pending: true, raw: "", error: undefined });
@@ -1313,17 +1328,16 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 files,
                 observations: observations.slice(-8),
                 round,
-                maxRounds: MAX_ROUNDS,
+                maxRounds,
                 skills,
                 actionTools,
                 images: images.map((image) => ({ path: image.path, alt: image.alt })),
                 recentDirections,
               });
               await puterChat({
-                model: puterModel,
-                messages: [
-                  { role: "system", content: BUILDER_PROMPT },
-                  ...history.slice(-4).map((message) => ({
+                model: puterModel,                  messages: [
+                    { role: "system", content: composeSystemPrompt(BUILDER_PROMPT, settings) },
+                    ...history.slice(-4).map((message) => ({
                     role: message.role,
                     content: truncate(message.content, 900),
                   })),
@@ -1348,6 +1362,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                   actionTools,
                   images: images.map((image) => ({ path: image.path, alt: image.alt })),
                   recentDirections,
+                  settings,
                 }),
                 signal: controller.signal,
               });
@@ -1393,7 +1408,21 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           }
 
           /* 2b — images: the image model draws real files --------------- */
-          const imageArtifacts = artifacts.filter((artifact) => artifact.kind === "image").slice(0, 3);
+          const askedForImages = artifacts.some((artifact) => artifact.kind === "image");
+          if (askedForImages && !settings.images) {
+            const toolId = pushTool({
+              kind: "image",
+              label: "Image generation is off",
+              detail: "model settings",
+            });
+            resolveTool(toolId, { status: "ok" });
+            observations.push(
+              "Image generation is turned off in model settings. Build those ideas with type, CSS, or inline SVG, and do not reference image files.",
+            );
+          }
+          const imageArtifacts = settings.images
+            ? artifacts.filter((artifact) => artifact.kind === "image").slice(0, 3)
+            : [];
           for (const artifact of imageArtifacts) {
             if (artifact.kind !== "image") continue;
             const path = imagePath(artifact.path);
@@ -1583,7 +1612,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
           if (incoming.length === 0) {
             resolveTool(writeTool, { status: "error", output: "No changes were produced." });
-            if (round < MAX_ROUNDS) continue;
+            if (round < maxRounds) continue;
             break;
           }
 
@@ -1897,7 +1926,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
             patchMessage(projectId, assistant.id, {
               content: "The project did not install or bundle cleanly. Sending the error back to the agent…",
             });
-            if (round < MAX_ROUNDS) continue;
+            if (round < maxRounds) continue;
             break;
           }
 
@@ -1908,13 +1937,13 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
 
           /* 5 — check the work, then ask someone else what to improve ---- */
-          if (!reviewed && round < MAX_ROUNDS) {
+          if (settings.selfReview && !reviewed && round < maxRounds) {
             reviewed = true;
             setPhase("Verifying and reviewing");
             const notes: string[] = [];
 
             // Current craft for this kind of site, from the live web.
-            if (capabilities?.tavily) {
+            if (settings.webResearch && capabilities?.tavily) {
               const query = researchQuery(plan, prompt);
               const toolId = pushTool({
                 kind: "search",
@@ -2124,7 +2153,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         setPhase("");
       }
     },
-    [appendNote, capabilities, nameChat, parkSandbox, patchMessage, patchProject, skills],
+    [appendNote, capabilities, modelSettings, nameChat, parkSandbox, patchMessage, patchProject, skills],
   );
 
   const send = useCallback(
@@ -2204,6 +2233,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     importRepo,
     skills,
     saveSkills,
+    modelSettings,
+    saveModelSettings,
     refreshPreview,
     refreshFiles,
     refreshCapabilities,
