@@ -20,6 +20,7 @@ type Body = {
   round?: number;
   history?: { role: "user" | "assistant"; content: string }[];
   skills?: { name: string; body: string }[];
+  actionTools?: { slug: string; description: string; params?: string[] }[];
 };
 
 const MAX_FILE_CHARS = 14_000;
@@ -73,6 +74,16 @@ async function run(request: Request) {
     round: Math.max(1, Math.min(body.round ?? 1, 6)),
     maxRounds: 6,
     skills: sanitizeSkills(body.skills),
+    actionTools: Array.isArray(body.actionTools)
+      ? body.actionTools
+          .filter((tool) => tool && typeof tool.slug === "string")
+          .slice(0, 120)
+          .map((tool) => ({
+            slug: tool.slug.slice(0, 120),
+            description: String(tool.description ?? "").slice(0, 180),
+            params: Array.isArray(tool.params) ? tool.params.slice(0, 14).map(String) : [],
+          }))
+      : [],
   });
 
   const messages: ModelMessage[] = [

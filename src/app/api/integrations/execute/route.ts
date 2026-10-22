@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { fail, handleError } from "@/lib/http";import { executeTool } from "@/lib/composio";
+import { fail, handleError } from "@/lib/http";
+import { executeTool } from "@/lib/composio";
+import { executeSessionTool } from "@/lib/composio-session";
 import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 
 export const maxDuration = 60;
+
 export async function POST(request: Request) {
   return withApiKeys(requestApiKeys(request), () => run(request));
 }
@@ -12,10 +15,12 @@ async function run(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       action?: string;
       userId?: string;
+      sessionId?: string;
       args?: Record<string, unknown>;
     };
     const action = (body.action ?? "").trim();
     const userId = (body.userId ?? "").trim().slice(0, 120);
+    const sessionId = (body.sessionId ?? "").trim().slice(0, 120);
     if (!action) return fail("Enter a Composio action slug, e.g. GITHUB_LIST_REPOSITORIES_FOR_A_USER.");
     if (!userId) return fail("Missing userId.");
     if (!apiKey("composio")) {
@@ -27,6 +32,10 @@ async function run(request: Request) {
     }
 
     const args = body.args && typeof body.args === "object" ? body.args : {};
+    if (sessionId) {
+      const result = await executeSessionTool(sessionId, action, args);
+      return NextResponse.json({ successful: result.ok, data: result.raw });
+    }
     const result = await executeTool(action, userId, args);
     return NextResponse.json(result);
   } catch (error) {

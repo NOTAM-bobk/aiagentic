@@ -14,6 +14,8 @@ import {
   Plug,
   Plus,
   Settings2,
+  Sun,
+  Moon,
   Trash2,
   X,
 } from "lucide-react";
@@ -111,6 +113,25 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         />
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const root = document.documentElement;
+              const next = root.dataset.theme === "light" ? "dark" : "light";
+              root.dataset.theme = next;
+              try {
+                window.localStorage.setItem("kiln.theme", next);
+              } catch {
+                // Storage disabled: the theme still applies for this page.
+              }
+            }}
+            aria-label="Toggle light mode"
+            title="Toggle light mode"
+            className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <Sun className="theme-sun h-4 w-4" />
+            <Moon className="theme-moon h-4 w-4" />
+          </button>
           <PuterAccount onNotify={workspace.setToast} />
           <button
             type="button"

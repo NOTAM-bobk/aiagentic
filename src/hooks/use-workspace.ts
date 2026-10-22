@@ -21,6 +21,7 @@ import type { Capabilities } from "@/lib/models";
 import { PUTER_MODELS } from "@/lib/puter-models";
 import { readKeys } from "@/lib/keys-client";
 import { readSkills, sanitizeSkills, writeSkills, type Skill } from "@/lib/skills";
+import { loadSessionTools } from "@/lib/composio-session-client";
 
 const STORAGE_KEY = "kiln.workspace.v1";
 const MAX_ROUNDS = 4;
@@ -1043,6 +1044,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
 
         /* 2 — build rounds ---------------------------------------------- */
+        const session = capabilities?.composio ? await loadSessionTools(getUserId()) : null;
+        const actionTools = session?.tools ?? [];
         let raw = "";
         let summaryText = "";
         for (let round = 1; round <= MAX_ROUNDS; round += 1) {
@@ -1075,6 +1078,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 round,
                 maxRounds: MAX_ROUNDS,
                 skills,
+                actionTools,
               });
               await puterChat({
                 model: puterModel,
@@ -1102,6 +1106,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                   round,
                   history,
                   skills,
+                  actionTools,
                 }),
                 signal: controller.signal,
               });

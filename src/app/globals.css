@@ -23,6 +23,42 @@
   --warn: #e7c07a;
 }
 
+/* Warm paper light mode. Same token names, so every Tailwind utility follows. */
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --paper: #f7f4ed;
+  --paper-2: #efeae0;
+  --paper-3: #e7e1d4;
+  --ink: #191c1a;
+  --ink-soft: #3f4844;
+  --ink-faint: #6c7570;
+  --line: #ded7c9;
+  --line-strong: #c4bdaa;
+  --ember: #0f7a4a;
+  --ember-bright: #0a5e39;
+  --ember-soft: #dcf1e5;
+  --night: #efeade;
+  --night-2: #e6e0d1;
+  --cream: #f7f4ed;
+  --moss: #0f7a4a;
+  --alert: #b5342a;
+  --alert-soft: #f7e4e1;
+  --warn: #8a6414;
+}
+
+.theme-sun {
+  display: none;
+}
+
+html[data-theme="light"] .theme-sun {
+  display: block;
+}
+
+html[data-theme="light"] .theme-moon {
+  display: none;
+}
+
 @theme inline {
   --color-paper: var(--paper);
   --color-paper-2: var(--paper-2);
@@ -89,7 +125,7 @@ body {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #3b4248;
+  background: var(--line-strong);
 }
 
 *::-webkit-scrollbar-track {

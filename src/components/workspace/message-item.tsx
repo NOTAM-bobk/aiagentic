@@ -8,6 +8,7 @@ import type { ChatMessage, Question, ToolEvent } from "@/lib/protocol";
 import { currentActivity, streamPreview, streamThink } from "@/lib/protocol";
 import { cn } from "@/lib/utils";
 import { getUserId } from "@/hooks/use-workspace";
+import { readSessionId } from "@/lib/composio-session-client";
 import { PlanCard } from "./plan-card";
 
 const VERBS: Record<ToolEvent["kind"], string> = {
@@ -371,7 +372,12 @@ function ActionApproval({ action, args }: { action: string; args: string }) {
       const response = await fetch("/api/integrations/execute", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, args: parsed, userId: getUserId() }),
+        body: JSON.stringify({
+          action,
+          args: parsed,
+          userId: getUserId(),
+          sessionId: readSessionId(getUserId()) ?? undefined,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Action failed.");

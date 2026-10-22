@@ -189,7 +189,7 @@ Rules for the protocol:
 - <run> starts a long-running process for the preview: port 3000, host 0.0.0.0, e.g. <run>python3 app.py</run>. Vite/Node projects with a build or dev script do not need it.
 - <ask> is a question, not a build. Use it only when a real answer changes what you write next, and always finish the turn with <done>.
 - <connect> only creates an OAuth link. Use <action> for a real operation after the toolkit is connected; Kiln shows the user an approval button and runs it only if they accept. Never claim a connector action already happened.
-- <action> takes an uppercase Composio action slug in the tool attribute and a JSON object as its body. One action per block.
+- <action> takes an uppercase Composio action slug in the tool attribute and a JSON object as its body. One action per block. When the context lists session tools, use those exact slugs; never invent one.
 
 # Judgement
 
@@ -206,8 +206,9 @@ export function buildEditContext(input: {
   round: number;
   maxRounds: number;
   skills?: { name: string; body: string }[];
+  actionTools?: { slug: string; description: string; params?: string[] }[];
 }): string {
-  const { plan, files, observations, round, maxRounds, skills } = input;
+  const { plan, files, observations, round, maxRounds, skills, actionTools } = input;
   const blocks: string[] = [];
 
   blocks.push(
@@ -223,6 +224,18 @@ export function buildEditContext(input: {
       `# Skills\nThe user wrote these instructions for this project. Follow them when they apply, and prefer them over your own defaults.\n\n${skills
         .map((skill) => `<skill name="${skill.name}">\n${skill.body}\n</skill>`)
         .join("\n\n")}`,
+    );
+  }
+
+  if (actionTools && actionTools.length > 0) {
+    blocks.push(
+      `# Session tools (GitHub only)\nThe user's Composio session exposes these actions. To run one, emit <action tool="SLUG">{"arg": value}</action> with a valid JSON body; the workspace asks for approval first. Prefer read-only calls unless the user asked for a change.\n\n${actionTools
+        .slice(0, 120)
+        .map(
+          (tool) =>
+            `- ${tool.slug}${tool.params?.length ? ` (${tool.params.join(", ")})` : ""}${tool.description ? ` — ${tool.description}` : ""}`,
+        )
+        .join("\n")}`,
     );
   }
 

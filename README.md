@@ -95,6 +95,16 @@ bun run dev
 
 Open `http://localhost:3000`. The workspace loads at `/`; the old `/build` path redirects there.
 
+The header has a light-mode toggle; the choice is saved in `localStorage` and applied by an inline
+script before first paint. Light mode swaps the token values in `src/app/globals.css`, so every
+Tailwind utility follows without per-component overrides.
+
+Composio work uses a **session** scoped to the `github` toolkit. When `COMPOSIO_API_KEY` is set, the
+first build creates or resumes a session for the workspace's stable user id, and the session's tool
+slugs and argument names are added to the builder context so the agent calls them with `<action>`.
+Actions run through the session, so identity and connections come from the same place. The skill
+docs live in `.agents/skills/composio`.
+
 Keys can also be entered per browser in **Setup** (`key` icon in the chat header) instead of the
 server env. Saved keys live in `localStorage` and are sent as an `x-kiln-keys` header on same-origin
 API calls; each route resolves them per request and falls back to the server env when absent. This

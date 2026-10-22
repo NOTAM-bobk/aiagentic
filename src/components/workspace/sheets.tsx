@@ -22,6 +22,7 @@ import { API_KEY_FIELDS, type ApiKeyMap } from "@/lib/keys";
 import { readKeys, saveKeys } from "@/lib/keys-client";
 import { cn } from "@/lib/utils";
 import { getUserId } from "@/hooks/use-workspace";
+import { readSessionId } from "@/lib/composio-session-client";
 
 function Sheet({
   open,
@@ -195,7 +196,12 @@ export function IntegrationsSheet({
       const response = await fetch("/api/integrations/execute", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, args: parsed, userId: getUserId() }),
+        body: JSON.stringify({
+          action,
+          args: parsed,
+          userId: getUserId(),
+          sessionId: readSessionId(getUserId()) ?? undefined,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Action failed.");

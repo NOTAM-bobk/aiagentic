@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/google": "4.0.102",
     "@ai-sdk/groq": "4.0.67",
+    "@composio/core": "^0.26.0",
     "@daytona/sdk": "0.225.0",
     "@webcontainer/api": "^1.6.4",
     "ai": "7.0.148",
