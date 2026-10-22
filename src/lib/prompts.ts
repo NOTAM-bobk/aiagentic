@@ -164,6 +164,7 @@ Or, to change a file that already exists, edit only the part that changes:
 Optional blocks, use only when the step genuinely needs them:
 <search>specific query</search>
 <shell>a single shell command</shell>
+<test cmd="npm test">Run the project's checks</test>
 <run>a long-running server command</run>
 <git action="push" repo="kebab-case-name" branch="main">Short commit message</git>
 <ask options="First path | Second path">One clear question</ask>
@@ -184,6 +185,7 @@ Rules for the protocol:
 - Do not use markdown fences around blocks. Do not wrap the whole answer in a code block.
 - Do not invent extra tags. Unknown tags are ignored and your work is lost.
 - <shell> is one command, no prompts, no dev servers, no editors. Commands run from the project root.
+- <test> runs the project's test suite (or a typecheck/lint check when there are no tests). Use it after adding or changing code when package.json has a test/check script, then fix what it reports. It needs a runtime, so do not use it for static index.html projects.
 - <run> starts a long-running process for the preview: port 3000, host 0.0.0.0, e.g. <run>python3 app.py</run>. Vite/Node projects with a build or dev script do not need it.
 - <ask> is a question, not a build. Use it only when a real answer changes what you write next, and always finish the turn with <done>.
 - <connect> only creates an OAuth link. Use <action> for a real operation after the toolkit is connected; Kiln shows the user an approval button and runs it only if they accept. Never claim a connector action already happened.
@@ -203,8 +205,9 @@ export function buildEditContext(input: {
   observations: string[];
   round: number;
   maxRounds: number;
+  skills?: { name: string; body: string }[];
 }): string {
-  const { plan, files, observations, round, maxRounds } = input;
+  const { plan, files, observations, round, maxRounds, skills } = input;
   const blocks: string[] = [];
 
   blocks.push(
@@ -214,6 +217,14 @@ export function buildEditContext(input: {
         : "Continue the build. Fix any issues and finish remaining work."
     }`,
   );
+
+  if (skills && skills.length > 0) {
+    blocks.push(
+      `# Skills\nThe user wrote these instructions for this project. Follow them when they apply, and prefer them over your own defaults.\n\n${skills
+        .map((skill) => `<skill name="${skill.name}">\n${skill.body}\n</skill>`)
+        .join("\n\n")}`,
+    );
+  }
 
   if (plan) {
     blocks.push(

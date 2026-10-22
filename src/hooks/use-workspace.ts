@@ -20,6 +20,7 @@ import { slugTitle, truncate, uid } from "@/lib/utils";
 import type { Capabilities } from "@/lib/models";
 import { PUTER_MODELS } from "@/lib/puter-models";
 import { readKeys } from "@/lib/keys-client";
+import { readSkills, sanitizeSkills, writeSkills, type Skill } from "@/lib/skills";
 
 const STORAGE_KEY = "kiln.workspace.v1";
 const MAX_ROUNDS = 4;
@@ -146,6 +147,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   const [hydrated, setHydrated] = useState(false);
   const [capsLoaded, setCapsLoaded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [skills, setSkills] = useState<Skill[]>([]);
 
   const projectsRef = useRef<Project[]>([]);
   const activeIdRef = useRef<string | null>(null);
@@ -273,6 +275,46 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     [appendNote, patchTool],
   );
 
+  const saveSkills = useCallback((next: Skill[]) => {
+    const clean = sanitizeSkills(next);
+    setSkills(clean);
+    writeSkills(clean);
+    setToast(clean.length ? `Saved ${clean.length} skill${clean.length === 1 ? "" : "s"}` : "Skills cleared");
+  }, []);
+
+  /** Adopt a cloned repository as the current project's files. */
+  const importRepo = useCallback(
+    (repo: string, branch: string, files: { path: string; content: string }[]) => {
+      const id = activeIdRef.current;
+      if (!id || files.length === 0) return;
+      const note: ChatMessage = {
+        id: uid("msg"),
+        role: "assistant",
+        content: `Imported ${repo} at ${branch} — ${files.length} files. Ask me to change anything, run tests, or push it back.`,
+        createdAt: Date.now(),
+      };
+      setProjects((prev) =>
+        prev.map((project) =>
+          project.id === id
+            ? {
+                ...project,
+                title: repo.split("/").pop() || project.title,
+                files: files.map((file) => ({ path: file.path, content: file.content })),
+                sandboxId: null,
+                previewUrl: null,
+                engine: null,
+                runtime: null,
+                messages: [...project.messages, note],
+                updatedAt: Date.now(),
+              }
+            : project,
+        ),
+      );
+      setToast(`Imported ${repo}`);
+    },
+    [],
+  );
+
   const patchMessage = useCallback((projectId: string, messageId: string, patch: Partial<ChatMessage>) => {
     setProjects((prev) =>
       prev.map((project) =>
@@ -301,6 +343,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           const restored = parsed.projects.map((project) => ({ ...project, messages: project.messages ?? [] }));
           // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
           setProjects(restored);
+          setSkills(readSkills());
           // A stale active id would leave the preview pane with no project at all.
           const validId = restored.some((project) => project.id === parsed.activeId)
             ? parsed.activeId
@@ -1031,6 +1074,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                 observations: observations.slice(-8),
                 round,
                 maxRounds: MAX_ROUNDS,
+                skills,
               });
               await puterChat({
                 model: puterModel,
@@ -1057,6 +1101,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
                   observations: observations.slice(-8),
                   round,
                   history,
+                  skills,
                 }),
                 signal: controller.signal,
               });
@@ -1387,6 +1432,52 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
               }
             }
 
+            if (artifact.kind === "test") {
+              const toolId = pushTool({
+                kind: "test",
+                label: artifact.command,
+                detail:
+                  engine === "cloud"
+                    ? "daytona"
+                    : engine === "webcontainer"
+                      ? "browser runtime"
+                      : "no runtime",
+              });
+              try {
+                let result: { exitCode: number; output: string } | null = null;
+                if (engine === "cloud" && sandboxId) {
+                  const response = await fetch("/api/sandbox", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ action: "exec", sandboxId, command: artifact.command, timeout: 120 }),
+                    signal: controller.signal,
+                  });
+                  if (!response.ok) throw new Error(await errorFromResponse(response));
+                  result = (await response.json()) as { exitCode: number; output: string };
+                } else if (engine === "webcontainer") {
+                  const instance = await ensureRunner();
+                  result = await instance.exec(artifact.command);
+                }
+                if (!result) {
+                  resolveTool(toolId, {
+                    status: "error",
+                    output: "Tests need a runtime. Run the preview once, or switch the prompt bar to cloud.",
+                  });
+                } else {
+                  observations.push(`$ ${artifact.command}\n${result.output}`);
+                  resolveTool(toolId, {
+                    status: result.exitCode === 0 ? "ok" : "error",
+                    output: truncate(result.output, 2400),
+                  });
+                }
+              } catch (error) {
+                resolveTool(toolId, {
+                  status: "error",
+                  output: error instanceof Error ? error.message : "Tests failed to run",
+                });
+              }
+            }
+
             if (artifact.kind === "git") {
               pushTool({
                 kind: "git",
@@ -1539,7 +1630,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         setPhase("");
       }
     },
-    [appendNote, capabilities, nameChat, parkSandbox, patchMessage, patchProject],
+    [appendNote, capabilities, nameChat, parkSandbox, patchMessage, patchProject, skills],
   );
 
   const send = useCallback(
@@ -1613,6 +1704,9 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setPuterModel,
     noteConnection,
     pushToGitHub,
+    importRepo,
+    skills,
+    saveSkills,
     refreshPreview,
     refreshFiles,
     refreshCapabilities,

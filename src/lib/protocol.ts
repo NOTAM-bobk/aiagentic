@@ -21,6 +21,7 @@ export type FileArtifact = { kind: "file"; path: string; content: string };
 export type EditArtifact = { kind: "edit"; path: string; find: string; replace: string };
 export type SearchArtifact = { kind: "search"; query: string };
 export type ShellArtifact = { kind: "shell"; command: string };
+export type TestArtifact = { kind: "test"; command: string };
 export type ConnectArtifact = { kind: "connect"; toolkit: string; note: string };
 export type ActionArtifact = { kind: "action"; tool: string; args: string };
 export type DeleteArtifact = { kind: "delete"; path: string };
@@ -42,6 +43,7 @@ export type Artifact =
   | EditArtifact
   | SearchArtifact
   | ShellArtifact
+  | TestArtifact
   | ConnectArtifact
   | ActionArtifact
   | DeleteArtifact
@@ -54,7 +56,7 @@ export type Artifact =
 
 export type ToolEvent = {
   id: string;
-  kind: "plan" | "search" | "write" | "edit" | "shell" | "run" | "connect" | "git" | "delete" | "sandbox";
+  kind: "plan" | "search" | "write" | "edit" | "shell" | "test" | "run" | "connect" | "git" | "delete" | "sandbox";
   label: string;
   detail?: string;
   status: "pending" | "running" | "ok" | "error";
@@ -115,7 +117,7 @@ export type Project = {
 };
 
 const TAG =
-  /<\s*(file|edit|say|search|shell|connect|action|delete|done|think|ask|run|title|git)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
+  /<\s*(file|edit|say|search|shell|test|connect|action|delete|done|think|ask|run|title|git)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
 
 function attr(attrs: string, name: string): string {
   // Accept single or double quotes: models occasionally switch.
@@ -174,6 +176,9 @@ export function parseArtifacts(raw: string): Artifact[] {
     } else if (tag === "shell") {
       const command = body.trim();
       if (command) artifacts.push({ kind: "shell", command });
+    } else if (tag === "test") {
+      const command = attr(attrs, "cmd") || body.trim();
+      if (command) artifacts.push({ kind: "test", command });
     } else if (tag === "run") {
       const command = body.trim();
       if (command) artifacts.push({ kind: "run", command });

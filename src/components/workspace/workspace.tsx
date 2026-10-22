@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import {
+  GitBranch,
   Loader2,
   Menu,
   MessageSquare,
@@ -22,7 +23,7 @@ import { bundleHtml, cn } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { PuterAccount } from "./puter-account";
 import { PreviewPanel, type PanelTab } from "./preview-panel";
-import { IntegrationsSheet, SetupSheet } from "./sheets";
+import { GitSheet, IntegrationsSheet, SetupSheet } from "./sheets";
 
 export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const workspace = useWorkspace({ initialPrompt });
@@ -33,6 +34,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [panelVisible, setPanelVisible] = useState(true);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [gitOpen, setGitOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncFiles, setSyncFiles] = useState(false);
 
@@ -55,6 +57,13 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const openSetup = useCallback(() => {
     setSetupOpen(true);
     setIntegrationsOpen(false);
+    setGitOpen(false);
+  }, []);
+
+  const openGit = useCallback(() => {
+    setGitOpen(true);
+    setIntegrationsOpen(false);
+    setSetupOpen(false);
   }, []);
 
   const openIntegrations = useCallback(() => {
@@ -112,6 +121,15 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:grid"
           >
             {panelVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={openGit}
+            aria-label="GitHub repositories"
+            title="GitHub repositories"
+            className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <GitBranch className="h-4 w-4" />
           </button>
           <button
             type="button"
@@ -207,6 +225,8 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               }}
               syncFiles={syncFiles}
               onExport={exportSite}
+              skills={workspace.skills}
+              onSaveSkills={workspace.saveSkills}
             />
           </div>
         </div>
@@ -288,6 +308,14 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         onClose={() => setSetupOpen(false)}
         capabilities={capabilities}
         onRecheck={() => void workspace.refreshCapabilities()}
+      />
+      <GitSheet
+        open={gitOpen}
+        onClose={() => setGitOpen(false)}
+        project={active}
+        onOpenSetup={openSetup}
+        onImport={workspace.importRepo}
+        onToast={workspace.setToast}
       />
 
       {!hydrated && (

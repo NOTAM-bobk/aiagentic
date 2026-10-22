@@ -7,6 +7,7 @@ import { apiKey, requestApiKeys, withApiKeys } from "@/lib/keys-server";
 import { BUILDER_PROMPT, buildEditContext } from "@/lib/prompts";
 import type { Plan, ProjectFile } from "@/lib/protocol";
 import { truncate } from "@/lib/utils";
+import { sanitizeSkills } from "@/lib/skills";
 
 export const maxDuration = 60;
 
@@ -18,6 +19,7 @@ type Body = {
   observations?: string[];
   round?: number;
   history?: { role: "user" | "assistant"; content: string }[];
+  skills?: { name: string; body: string }[];
 };
 
 const MAX_FILE_CHARS = 14_000;
@@ -70,6 +72,7 @@ async function run(request: Request) {
     observations: (body.observations ?? []).slice(-10).map((item) => item.slice(0, 3000)),
     round: Math.max(1, Math.min(body.round ?? 1, 6)),
     maxRounds: 6,
+    skills: sanitizeSkills(body.skills),
   });
 
   const messages: ModelMessage[] = [

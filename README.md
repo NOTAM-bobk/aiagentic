@@ -38,7 +38,7 @@ prompt
   └─ install     WebContainer · npm               → free browser runtime, no machine billed
   └─ bundle      WebContainer · npm run build     → dist/ served, or a dev server started
   └─ execute     Tavily · WebContainer · Composio  → results fed into the next round
-  └─ push        Octokit · GitHub REST            → repo, branch, commit, push on approval
+  └─ git         isomorphic-git · Octokit        → clone a repo into files, or push on approval
   └─ preview     WebContainer URL / Daytona / srcDoc → the running app
   └─ name        Groq / Gemini                     → a short title for the conversation
 ```
@@ -148,6 +148,13 @@ Notes:
   block, the chat shows a **push to GitHub** button, and the push happens only after you click it.
   There is no git binary inside WebContainers, so commits are created with the GitHub REST API
   (blobs → tree → commit → ref) rather than locally.
+- The branch icon in the header opens **Git**: it lists your repositories, clones one with
+  isomorphic-git into an in-memory volume on the server, and adopts the readable files as the
+  project. Public repos clone without a token; listing and private clones require one. The same
+  sheet can push the current project to a repo name and branch.
+- The **skills** tab beside the preview holds instructions (house style, stack rules, review
+  checklist) that ship with every build request. `<test cmd="npm test">` runs the project's checks
+  in the active runtime and feeds the output back to the agent.
 
 - Puter.js loads on the client and the header button signs you in once. Models and pricing are
   controlled by Puter's user-pays model; the builder is selected in the composer.

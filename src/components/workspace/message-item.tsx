@@ -16,6 +16,7 @@ const VERBS: Record<ToolEvent["kind"], string> = {
   write: "write",
   edit: "edit",
   shell: "exec",
+  test: "test",
   run: "run",
   connect: "connect",
   git: "git",

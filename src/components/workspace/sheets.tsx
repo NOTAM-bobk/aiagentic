@@ -5,12 +5,18 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
+  Download,
+  GitBranch,
   KeyRound,
   Loader2,
+  Lock,
   Plug,
   RefreshCw,
+  Search,
+  Upload,
   X,
 } from "lucide-react";
+import type { Project } from "@/lib/protocol";
 import type { Capabilities } from "@/lib/models";
 import { API_KEY_FIELDS, type ApiKeyMap } from "@/lib/keys";
 import { readKeys, saveKeys } from "@/lib/keys-client";
@@ -504,6 +510,276 @@ export function SetupSheet({
           ))}
         </dl>
       </div>
+    </Sheet>
+  );
+}
+
+type RepoSummary = {
+  fullName: string;
+  name: string;
+  owner: string;
+  defaultBranch: string;
+  private: boolean;
+  updatedAt: string;
+};
+
+export function GitSheet({
+  open,
+  onClose,
+  project,
+  onOpenSetup,
+  onImport,
+  onToast,
+}: {
+  open: boolean;
+  onClose: () => void;
+  project: Project | null;
+  onOpenSetup: () => void;
+  onImport: (repo: string, branch: string, files: { path: string; content: string }[]) => void;
+  onToast: (message: string | null) => void;
+}) {
+  const [checking, setChecking] = useState(true);
+  const [configured, setConfigured] = useState(false);
+  const [repos, setRepos] = useState<RepoSummary[]>([]);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pushing, setPushing] = useState(false);
+  const [pushed, setPushed] = useState<{ url: string } | null>(null);
+  const [pushRepo, setPushRepo] = useState("");
+  const [branch, setBranch] = useState("main");
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    // Reset the sheet each time it opens; state starts from the last session otherwise.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setChecking(true);
+    setError(null);
+    setPushed(null);
+
+    void (async () => {
+      try {
+        const status = (await fetch("/api/git", { cache: "no-store" }).then((response) =>
+          response.json(),
+        )) as { configured?: boolean };
+        if (cancelled) return;
+        setConfigured(Boolean(status.configured));
+        if (status.configured) {
+          const data = (await fetch("/api/git?action=repos", { cache: "no-store" }).then(
+            (response) => response.json(),
+          )) as { repos?: RepoSummary[]; error?: string };
+          if (cancelled) return;
+          if (data.error) setError(data.error);
+          setRepos(Array.isArray(data.repos) ? data.repos : []);
+        }
+      } catch (caught) {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Could not reach GitHub.");
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const projectId = project?.id ?? null;
+  const projectTitle = project?.title ?? "";
+
+  useEffect(() => {
+    if (!open || !projectId) return;
+    const repo = projectTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPushRepo(repo.slice(0, 60) || "kiln-site");
+    setBranch("main");
+  }, [open, projectId, projectTitle]);
+
+  async function importRepo(repo: RepoSummary) {
+    setBusy(repo.fullName);
+    setError(null);
+    try {
+      const data = (await fetch(
+        `/api/git?action=clone&repo=${encodeURIComponent(repo.fullName)}&branch=${encodeURIComponent(repo.defaultBranch)}`,
+        { cache: "no-store" },
+      ).then((response) => response.json())) as {
+        repo?: string;
+        branch?: string;
+        files?: { path: string; content: string }[];
+        error?: string;
+      };
+      if (data.error) throw new Error(data.error);
+      if (!data.files?.length) throw new Error("That repository has no readable files.");
+      onImport(data.repo ?? repo.fullName, data.branch ?? repo.defaultBranch, data.files);
+      onToast(`Imported ${data.repo ?? repo.fullName} — ${data.files.length} files`);
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Clone failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function push() {
+    if (!project || !pushRepo.trim()) return;
+    setPushing(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/git", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          files: project.files,
+          repo: pushRepo,
+          branch,
+          message: `Update from Kiln — ${new Date().toLocaleDateString()}`,
+        }),
+      });
+      const data = (await response.json()) as { url?: string; error?: string; repo?: string; branch?: string };
+      if (!response.ok) throw new Error(data.error ?? "Push failed.");
+      setPushed({ url: data.url ?? "" });
+      onToast(`Pushed to ${data.repo} (${data.branch})`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Push failed.");
+    } finally {
+      setPushing(false);
+    }
+  }
+
+  const visible = repos.filter((repo) => {
+    const needle = query.trim().toLowerCase();
+    return !needle || repo.fullName.toLowerCase().includes(needle);
+  });
+
+  return (
+    <Sheet open={open} onClose={onClose} title="git" subtitle="clone a repo, import files, push back">
+      {checking ? (
+        <p className="flex items-center gap-2 font-mono text-[12px] text-ink-faint">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> checking GitHub…
+        </p>
+      ) : !configured ? (
+        <div className="border border-line bg-paper-2/40 px-3 py-3">
+          <p className="flex items-center gap-2 font-mono text-[12.5px] text-ink">
+            <Lock className="h-3.5 w-3.5 text-ink-faint" /> sign in to GitHub
+          </p>
+          <p className="mt-2 font-mono text-[11.5px] leading-relaxed text-ink-soft">
+            Cloning private repositories and pushing need a GitHub token with{" "}
+            <span className="text-ink">repo</span> scope. Public repos can be cloned without one.
+          </p>
+          <button
+            type="button"
+            onClick={onOpenSetup}
+            className="mt-3 inline-flex min-h-9 items-center gap-2 border border-ember/40 bg-ember/10 px-3 font-mono text-[12px] text-ember transition-colors hover:border-ember"
+          >
+            <KeyRound className="h-3.5 w-3.5" /> add a GitHub token
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5 border border-line bg-paper px-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="filter repositories"
+              spellCheck={false}
+              className="min-h-9 w-full min-w-0 bg-transparent font-mono text-[12px] text-ink placeholder:text-ink-faint/70 focus:outline-none"
+            />
+          </div>
+
+          <ul className="mt-3 divide-y divide-line border-y border-line">
+            {visible.length === 0 ? (
+              <li className="px-1 py-4 font-mono text-[11.5px] text-ink-faint">
+                no repositories match.
+              </li>
+            ) : (
+              visible.map((repo) => (
+                <li key={repo.fullName} className="flex items-center gap-3 px-1 py-2.5">
+                  <div className="min-w-0 flex-1 font-mono">
+                    <p className="flex items-center gap-2 truncate text-[12.5px] text-ink">
+                      <GitBranch className="h-3 w-3 shrink-0 text-ink-faint" />
+                      {repo.fullName}
+                      {repo.private && (
+                        <span className="border border-line px-1 text-[10px] text-ink-faint">private</span>
+                      )}
+                    </p>
+                    <p className="mt-1 truncate text-[11px] text-ink-faint">
+                      {repo.defaultBranch} · updated{" "}
+                      {repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : "recently"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void importRepo(repo)}
+                    disabled={Boolean(busy)}
+                    className="inline-flex min-h-8 shrink-0 items-center gap-1.5 border border-line px-2.5 font-mono text-[11px] text-ink-soft transition-colors hover:border-ember/60 hover:text-ember disabled:opacity-50"
+                  >
+                    {busy === repo.fullName ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Download className="h-3 w-3" />
+                    )}
+                    import
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="label-xs text-ink-faint">push this project</p>
+            <p className="mt-1 font-mono text-[11px] leading-relaxed text-ink-faint">
+              {project ? `${project.files.length} files in this project` : "open a project first"}
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_120px]">
+              <label className="font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">
+                repo name
+                <input
+                  value={pushRepo}
+                  onChange={(event) => setPushRepo(event.target.value)}
+                  spellCheck={false}
+                  className="mt-1 block min-h-9 w-full border border-line bg-paper px-2 text-[12px] normal-case tracking-normal text-ink focus:border-ember/60 focus:outline-none"
+                />
+              </label>
+              <label className="font-mono text-[10.5px] uppercase tracking-wider text-ink-faint">
+                branch
+                <input
+                  value={branch}
+                  onChange={(event) => setBranch(event.target.value)}
+                  spellCheck={false}
+                  className="mt-1 block min-h-9 w-full border border-line bg-paper px-2 text-[12px] normal-case tracking-normal text-ink focus:border-ember/60 focus:outline-none"
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={() => void push()}
+              disabled={pushing || !project || project.files.length === 0}
+              className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 border border-ember/40 bg-ember/10 px-3 font-mono text-[12px] text-ember transition-colors hover:border-ember disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              {pushing ? "pushing…" : "push to GitHub"}
+            </button>
+            {pushed && (
+              <a
+                href={pushed.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex items-center gap-1 font-mono text-[11.5px] text-ember hover:underline"
+              >
+                pushed — open repo <ArrowUpRight className="h-2.5 w-2.5" />
+              </a>
+            )}
+          </div>
+        </>
+      )}
+
+      {error && (
+        <p className="mt-3 border-l-2 border-l-alert bg-alert-soft/40 px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-ink-soft">
+          {error}
+        </p>
+      )}
     </Sheet>
   );
 }

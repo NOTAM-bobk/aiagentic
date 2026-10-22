@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fail, handleError } from "@/lib/http";
-import { hasGitHub, pushProject } from "@/lib/github";
+import { cloneRepo, hasGitHub, listRepos, pushProject } from "@/lib/github";
 import { sanitizePath } from "@/lib/protocol";
 import { requestApiKeys, withApiKeys } from "@/lib/keys-server";
 
@@ -15,9 +15,34 @@ type Body = {
 };
 
 export async function GET(request: Request) {
-  return withApiKeys(requestApiKeys(request), () =>
-    NextResponse.json({ configured: hasGitHub() }),
-  );
+  return withApiKeys(requestApiKeys(request), () => read(request));
+}
+
+async function read(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const action = params.get("action") ?? "status";
+
+  try {
+    if (action === "repos") {
+      if (!hasGitHub()) {
+        return fail("Sign in with a GitHub token in Setup to list your repositories.", 401, "github_missing");
+      }
+      const repos = await listRepos();
+      return NextResponse.json({ configured: true, repos });
+    }
+
+    if (action === "clone") {
+      const repo = (params.get("repo") ?? "").trim().slice(0, 200);
+      const branch = (params.get("branch") ?? "").trim().slice(0, 120) || undefined;
+      if (!repo) return fail("Choose a repository to import.", 400, "repo_missing");
+      const report = await cloneRepo({ repo, branch });
+      return NextResponse.json(report);
+    }
+
+    return NextResponse.json({ configured: hasGitHub() });
+  } catch (error) {
+    return handleError(error);
+  }
 }
 
 export async function POST(request: Request) {

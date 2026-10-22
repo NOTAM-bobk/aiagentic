@@ -7,18 +7,22 @@ import {
   Download,
   Loader2,
   Monitor,
+  Plus,
   RefreshCw,
   Smartphone,
+  Trash2,
 } from "lucide-react";
 import type { Project } from "@/lib/protocol";
-import { bundleHtml, cn } from "@/lib/utils";
+import type { Skill } from "@/lib/skills";
+import { bundleHtml, cn, uid } from "@/lib/utils";
 
-export type PanelTab = "preview" | "files" | "activity";
+export type PanelTab = "preview" | "files" | "activity" | "skills";
 
 const TABS: { id: PanelTab; label: string }[] = [
   { id: "preview", label: "preview" },
   { id: "files", label: "files" },
   { id: "activity", label: "logs" },
+  { id: "skills", label: "skills" },
 ];
 
 export function PreviewPanel({
@@ -30,6 +34,8 @@ export function PreviewPanel({
   onRefreshFiles,
   syncFiles,
   onExport,
+  skills,
+  onSaveSkills,
 }: {
   project: Project | null;
   tab: PanelTab;
@@ -39,6 +45,8 @@ export function PreviewPanel({
   onRefreshFiles: () => void;
   syncFiles: boolean;
   onExport: () => void;
+  skills: Skill[];
+  onSaveSkills: (skills: Skill[]) => void;
 }) {
   const counts = project?.files.length ?? 0;
 
@@ -92,6 +100,7 @@ export function PreviewPanel({
         )}
         {tab === "files" && <FilesTab project={project} />}
         {tab === "activity" && <ActivityTab project={project} />}
+        {tab === "skills" && <SkillsTab skills={skills} onSave={onSaveSkills} />}
       </div>
     </div>
   );
@@ -316,6 +325,83 @@ function FilesTab({ project }: { project: Project | null }) {
             ))}
           </pre>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SkillsTab({ skills, onSave }: { skills: Skill[]; onSave: (skills: Skill[]) => void }) {
+  const [drafts, setDrafts] = useState<Skill[]>(skills);
+  const [saved, setSaved] = useState(false);
+
+  const update = (id: string, patch: Partial<Skill>) =>
+    setDrafts((prev) => prev.map((skill) => (skill.id === id ? { ...skill, ...patch } : skill)));
+
+  return (
+    <div className="flex h-full min-h-0 flex-col font-mono">
+      <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2">
+        <p className="text-[11px] leading-relaxed text-ink-faint">
+          instructions the agent reads with every build
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDrafts((prev) => [...prev, { id: uid("skill"), name: "", body: "" }])}
+            className="inline-flex min-h-8 items-center gap-1 border border-line px-2 text-[11px] text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <Plus className="h-3 w-3" /> new
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onSave(drafts);
+              setSaved(true);
+              window.setTimeout(() => setSaved(false), 1600);
+            }}
+            className="inline-flex min-h-8 items-center gap-1 border border-ember/40 bg-ember/10 px-2 text-[11px] text-ember transition-colors hover:border-ember"
+          >
+            {saved ? <Check className="h-3 w-3" /> : null}
+            {saved ? "saved" : "save"}
+          </button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
+        {drafts.length === 0 ? (
+          <p className="py-10 text-center text-[12px] leading-relaxed text-ink-faint">
+            no skills yet — add your house style, stack rules, or test commands.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {drafts.map((skill) => (
+              <li key={skill.id} className="border border-line bg-paper-2/30 p-2.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={skill.name}
+                    onChange={(event) => update(skill.id, { name: event.target.value })}
+                    placeholder="skill name (e.g. brand voice)"
+                    className="min-h-8 min-w-0 flex-1 border-b border-line bg-transparent px-1 text-[12px] text-ink placeholder:text-ink-faint/70 focus:border-ember/60 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Delete ${skill.name || "skill"}`}
+                    onClick={() => setDrafts((prev) => prev.filter((item) => item.id !== skill.id))}
+                    className="p-1.5 text-ink-faint transition-colors hover:text-alert"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <textarea
+                  value={skill.body}
+                  onChange={(event) => update(skill.id, { body: event.target.value })}
+                  placeholder="Paste instructions: tone, stack, conventions, commands to run, things to avoid…"
+                  rows={5}
+                  className="mt-2 w-full resize-y border border-line bg-paper px-2 py-1.5 text-[11.5px] leading-relaxed text-ink-soft placeholder:text-ink-faint/70 focus:border-ember/60 focus:outline-none"
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );
