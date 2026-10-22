@@ -30,6 +30,13 @@ export const API_KEY_FIELDS = [
     href: "https://app.daytona.io/dashboard/keys",
   },
   {
+    id: "webcontainer",
+    env: "WEBCONTAINER_API_KEY",
+    label: "StackBlitz WebContainers",
+    purpose: "Raise the browser runtime's command limits",
+    href: "https://webcontainers.io/api",
+  },
+  {
     id: "composio",
     env: "COMPOSIO_API_KEY",
     label: "Composio",

@@ -26,6 +26,31 @@ export const DEFAULT_SKILLS: Skill[] = [
     name: "verify before done",
     body: "After a non-trivial change, check it: run the project's tests, typecheck, or build with <test> or <shell>, read the output, and fix the cause. Check the page at 360px, 768px, and 1440px widths mentally against the layout you wrote, ensure focus states and touch targets, and remove unused imports and console noise before finishing.",
   },
+  {
+    id: "default-mobile-first",
+    name: "mobile layouts",
+    body: "Design at 360px first, then widen. Every layout must survive a narrow screen: no horizontal scrolling, no fixed pixel widths that overflow, no controls under 40px tall, and no text over an image without a readable scrim. Nav and long lists collapse into a simple stacked form or a menu instead of shrinking to unreadable rows.",
+  },
+  {
+    id: "default-accessibility",
+    name: "accessible controls",
+    body: "Semantic HTML before ARIA: real buttons, links, labels, and landmarks. Keep visible focus rings, a logical tab order, aria-labels on icon-only controls, and contrast that holds in both themes. Never put a click handler on a bare div, never hide content behind hover alone, and never trap keyboard focus in an overlay.",
+  },
+  {
+    id: "default-motion",
+    name: "restrained motion",
+    body: "Use motion to explain a change, not to decorate it. Prefer short CSS transitions (120-220ms) on color, transform, and opacity; animate entrances once, never looping background movement, and respect prefers-reduced-motion. No parallax on mobile, no bounce on every hover, and no animation that blocks reading or delays interaction.",
+  },
+  {
+    id: "default-self-contained",
+    name: "self-contained assets",
+    body: "The build must render with no network: generate artwork with CSS, inline SVG, or gradients, and use system font stacks unless the user asks for a hosted font. Avoid hotlinking stock photos or random CDN URLs; if an image is genuinely needed, reference a placeholder that always resolves or draw it. Never leave broken image icons or empty image boxes.",
+  },
+  {
+    id: "default-states",
+    name: "real states",
+    body: "Every interactive surface needs its four states: default, hover/focus, loading, and empty or error. Forms validate, show inline messages, and keep typed input on failure. Lists show a designed empty state, async work shows a labelled spinner or skeleton, and failures say what happened and what to do next instead of silently doing nothing.",
+  },
 ];
 
 /** Accept only well-formed skills coming from the client or storage. */

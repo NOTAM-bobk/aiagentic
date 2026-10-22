@@ -42,6 +42,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [redeploying, setRedeploying] = useState(false);
   const [syncFiles, setSyncFiles] = useState(false);
   const [panelWidth, setPanelWidth] = useState(52);
   const splitRef = useRef<HTMLDivElement>(null);
@@ -353,6 +354,13 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               skills={workspace.skills}
               onSaveSkills={workspace.saveSkills}
               onDeploy={() => setDeployOpen(true)}
+              redeploying={redeploying}
+              onRedeploy={async () => {
+                if (!active) return;
+                setRedeploying(true);
+                await workspace.redeploy(active.id);
+                setRedeploying(false);
+              }}
             />
           </div>
         </div>

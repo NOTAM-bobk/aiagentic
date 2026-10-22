@@ -38,6 +38,7 @@ export type Capabilities = {
   google: boolean;
   tavily: boolean;
   daytona: boolean;
+  webcontainer: boolean;
   composio: boolean;
   vercel: boolean;
   puter: boolean;
@@ -49,6 +50,7 @@ export function readCapabilities(): Capabilities {
     google: Boolean(apiKey("google") ?? process.env.GOOGLE_API_KEY),
     tavily: Boolean(apiKey("tavily")),
     daytona: Boolean(apiKey("daytona")),
+    webcontainer: Boolean(apiKey("webcontainer")),
     composio: Boolean(apiKey("composio")),
     vercel: Boolean(apiKey("vercel")),
     puter: true,

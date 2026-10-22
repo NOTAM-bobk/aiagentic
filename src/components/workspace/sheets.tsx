@@ -361,6 +361,10 @@ const KEY_ROWS = API_KEY_FIELDS.map((field) => ({
   capability: (field.id === "github" ? null : field.id) as keyof Capabilities | null,
 }));
 
+// Keys that only raise limits. The free path works without them, so they must
+// not count as a missing provider.
+const OPTIONAL_KEYS = new Set<string>(["webcontainer"]);
+
 export function SetupSheet({
   open,
   onClose,
@@ -382,7 +386,9 @@ export function SetupSheet({
     if (open) setDrafts(readKeys());
   }, [open]);
 
-  const missing = KEY_ROWS.filter((item) => item.capability && !capabilities?.[item.capability]).length;
+  const missing = KEY_ROWS.filter(
+    (item) => item.capability && !capabilities?.[item.capability] && !OPTIONAL_KEYS.has(item.id),
+  ).length;
   const stored = KEY_ROWS.filter((item) => Boolean(drafts[item.id]?.trim())).length;
 
   function persist() {
@@ -499,7 +505,10 @@ export function SetupSheet({
       </ul>
 
       <div className="mt-6">
-        <p className="label-xs text-ink-faint">overrides</p>
+        <p className="label-xs text-ink-faint">server env overrides</p>
+        <p className="mt-1 font-mono text-[10.5px] leading-relaxed text-ink-faint">
+          not keys — set these on the server or in the deployment environment.
+        </p>
         <dl className="mt-2 space-y-2 font-mono text-[11.5px] text-ink-soft">
           {[
             ["GROQ_PLANNER_MODEL", "gpt-oss-120b"],
@@ -507,9 +516,9 @@ export function SetupSheet({
             ["GROQ_BUILDER_MODEL", "gpt-oss-120b"],
             ["DAYTONA_API_URL", "daytona cloud"],
             ["DAYTONA_TARGET", "your region"],
-            ["GITHUB_TOKEN", "octokit push"],
-            ["WEBCONTAINER_API_KEY", "stackblitz commands"],
-            ["VERCEL_TOKEN", "base31 deploys"],
+            ["VERCEL_TEAM_ID", "team that owns base31.org"],
+            ["BASE31_DOMAIN", "base31.org"],
+            ["NEXT_PUBLIC_SITE_URL", "canonical urls"],
           ].map(([key, value]) => (
             <div key={key} className="flex flex-wrap justify-between gap-2 border-b border-line/70 pb-1">
               <dt className="text-ink">{key}</dt>

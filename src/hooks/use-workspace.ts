@@ -519,6 +519,49 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     [patchProject],
   );
 
+  /** Re-publish the current files to the project's one existing address. */
+  const redeploy = useCallback(
+    async (id: string) => {
+      const project = projectsRef.current.find((item) => item.id === id);
+      if (!project?.deploy || project.files.length === 0) return false;
+      try {
+        const response = await fetch("/api/deploy", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: project.deploy.host, files: project.files }),
+        });
+        const data = (await response.json()) as {
+          ok?: boolean;
+          host?: string;
+          url?: string;
+          state?: string;
+          error?: string;
+        };
+        if (!response.ok || !data.host || !data.url) {
+          throw new Error(data.error ?? "Redeploy failed.");
+        }
+        patchProject(id, {
+          deploy: {
+            host: data.host,
+            url: data.url,
+            state: data.state ?? "QUEUED",
+            at: Date.now(),
+          },
+        });
+        setToast(
+          data.ok
+            ? `Live at ${data.host}`
+            : `Redeploying ${data.host} — Vercel is building`,
+        );
+        return true;
+      } catch (caught) {
+        setToast(caught instanceof Error ? caught.message : "Redeploy failed.");
+        return false;
+      }
+    },
+    [patchProject],
+  );
+
   const stop = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -1729,6 +1772,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setMode,
     setPuterModel,
     recordDeploy,
+    redeploy,
     noteConnection,
     pushToGitHub,
     importRepo,

@@ -38,6 +38,8 @@ export function PreviewPanel({
   skills,
   onSaveSkills,
   onDeploy,
+  onRedeploy,
+  redeploying,
 }: {
   project: Project | null;
   tab: PanelTab;
@@ -50,6 +52,8 @@ export function PreviewPanel({
   skills: Skill[];
   onSaveSkills: (skills: Skill[]) => void;
   onDeploy: () => void;
+  onRedeploy: () => void;
+  redeploying: boolean;
 }) {
   const counts = project?.files.length ?? 0;
 
@@ -86,26 +90,43 @@ export function PreviewPanel({
               <RefreshCw className={cn("h-3.5 w-3.5", syncFiles && "animate-spin")} />
             </button>
           )}
-          {project?.deploy && (
-            <a
-              href={project.deploy.url}
-              target="_blank"
-              rel="noreferrer"
-              title={`${project.deploy.state} · ${project.deploy.host}`}
-              className="inline-flex min-h-8 shrink-0 items-center gap-1 px-1 text-[11px] text-ember transition-colors hover:underline"
+          {project?.deploy ? (
+            <>
+              <a
+                href={project.deploy.url}
+                target="_blank"
+                rel="noreferrer"
+                title={`${project.deploy.state} · ${project.deploy.host}`}
+                className="inline-flex min-h-8 shrink-0 items-center gap-1 px-1 text-[11px] text-ember transition-colors hover:underline"
+              >
+                live ↗
+              </a>
+              <button
+                type="button"
+                onClick={onRedeploy}
+                disabled={redeploying || counts === 0}
+                title={`Redeploy the latest files to ${project.deploy.host}`}
+                className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-ember/40 bg-ember/10 px-2.5 text-[11.5px] text-ember transition-colors hover:border-ember disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {redeploying ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Rocket className="h-3 w-3" />
+                )}
+                <span className="hidden sm:inline">redeploy</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onDeploy}
+              disabled={!project || counts === 0}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-ember/40 bg-ember/10 px-2.5 text-[11.5px] text-ember transition-colors hover:border-ember disabled:cursor-not-allowed disabled:opacity-40"
             >
-              live ↗
-            </a>
+              <Rocket className="h-3 w-3" />
+              <span className="hidden sm:inline">deploy</span>
+            </button>
           )}
-          <button
-            type="button"
-            onClick={onDeploy}
-            disabled={!project || counts === 0}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-ember/40 bg-ember/10 px-2.5 text-[11.5px] text-ember transition-colors hover:border-ember disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Rocket className="h-3 w-3" />
-            <span className="hidden sm:inline">deploy</span>
-          </button>
           <button
             type="button"
             onClick={onExport}

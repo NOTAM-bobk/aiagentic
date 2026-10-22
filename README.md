@@ -64,10 +64,10 @@ iframe served with COOP/COEP and embedded with `allow="cross-origin-isolated"`. 
 itself stays unisolated, which keeps Puter and preview iframes working. If a tab cannot be
 isolated, the files are still saved and the workspace falls back to Daytona in Auto mode.
 
-A StackBlitz key from [stackblitz.com/api-console](https://stackblitz.com/api-console) raises the
-runtime limits. Set `WEBCONTAINER_API_KEY` (or `STACKBLITZ_API_KEY`) on the server; `/api/runner-key`
-hands it to the isolated runner at boot, where the WebContainer API requires `configureAPIKey` to run
-in the browser. Treat that key as client-visible by design.
+A StackBlitz key ([webcontainers.io/api](https://webcontainers.io/api)) raises the runtime limits.
+Set `WEBCONTAINER_API_KEY` (or `STACKBLITZ_API_KEY`) on the server or paste it into **Setup**;
+`/api/runner-key` hands it to the isolated runner at boot, where the WebContainer API requires
+`configureAPIKey` to run in the browser. Treat that key as client-visible by design.
 
 A sandbox parks itself when the tab closes or a turn ends with nothing to preview, and Daytona's
 auto-stop catches the rest after ten idle minutes. Files survive; the next preview wakes it and
@@ -112,9 +112,10 @@ docs live in `.agents/skills/composio`.
 
 Keys can also be entered per browser in **Setup** (`key` icon in the chat header) instead of the
 server env. Saved keys live in `localStorage` and are sent as an `x-kiln-keys` header on same-origin
-API calls; each route resolves them per request and falls back to the server env when absent. This
-is what makes a deployment without env vars usable — paste your own Groq, Gemini, Tavily, Daytona,
-Composio, or GitHub token and the agent uses it immediately.
+API calls; each route resolves them per request and falls back to the server env when absent. Every
+third-party service the app talks to has a row there — Groq, Google AI Studio, Tavily, Daytona,
+StackBlitz WebContainers, Composio, GitHub, and Vercel — so a deployment without env vars is fully
+usable with your own keys.
 
 There is no starter-prompt gallery: type what you want into the `❯` prompt line and press Enter.
 The builder selector lists four Gemini models (3.8 Flash, 2.5 Flash, 2.5 Pro, 2.5 Flash Lite),
@@ -128,6 +129,11 @@ the project from source, so Next/Astro/SvelteKit/Vue projects work without a loc
 sites deploy as files. The deploy creates a project named `base31-<label>` and attaches the
 domain — `base31.org` must live on the same Vercel account/team as the token.
 
+A project keeps exactly one URL. Once it is published, the address is locked: the sheet shows it
+with a **redeploy latest changes** button instead of a name field, and the preview header swaps
+**deploy** for **redeploy** next to the live link. Redeploys create a new Vercel deployment under
+the same project, so the domain never changes; only a first publish can claim a new subdomain.
+
 ## Environment variables on Vercel
 
 Add these in **Project → Settings → Environment Variables**, for Production, Preview, and
@@ -139,6 +145,7 @@ Development, then redeploy.
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Cloud mode | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Builder (`gemini-3.8-flash`) |
 | `TAVILY_API_KEY` | Optional | [app.tavily.com](https://app.tavily.com) | Live web search during builds |
 | `DAYTONA_API_KEY` | Optional | [app.daytona.io](https://app.daytona.io/dashboard/keys) | Sandboxes, commands, signed previews |
+| `WEBCONTAINER_API_KEY` | Optional | [webcontainers.io/api](https://webcontainers.io/api) | Raises browser-runtime limits (`STACKBLITZ_API_KEY` also works) |
 | `COMPOSIO_API_KEY` | Optional | [app.composio.dev](https://app.composio.dev/developers) | GitHub / Supabase / Cloudflare / Vercel connectors |
 | `GITHUB_TOKEN` | Optional | [github.com/settings/tokens](https://github.com/settings/tokens) | Octokit pushes: create repo, branch, commit, push |
 | `VERCEL_TOKEN` | Optional | [vercel.com/account/tokens](https://vercel.com/account/tokens) | Deploy to `<name>.base31.org` (add `base31.org` to the same Vercel team) |
@@ -179,9 +186,12 @@ Notes:
   isomorphic-git into an in-memory volume on the server, and adopts the readable files as the
   project. Public repos clone without a token; listing and private clones require one. The same
   sheet can push the current project to a repo name and branch.
-- The **skills** tab beside the preview holds instructions (house style, stack rules, review
-  checklist) that ship with every build request. `<test cmd="npm test">` runs the project's checks
-  in the active runtime and feeds the output back to the agent.
+- The **skills** tab beside the preview holds instructions that ship with every build request.
+  Nine defaults start a new browser: design variance, real content, framework playbook, verify
+  before done, mobile layouts, accessible controls, restrained motion, self-contained assets, and
+  real states. Edit, delete, or add your own — for example house style, stack rules, or a review
+  checklist. `<test cmd="npm test">` runs the project's checks in the active runtime and feeds the
+  output back to the agent.
 
 - Puter.js loads on the client and the header button signs you in once. Models and pricing are
   controlled by Puter's user-pays model; the builder is selected in the composer.

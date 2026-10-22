@@ -210,8 +210,17 @@ export async function deployProject(
   files: { path: string; content: string }[],
 ): Promise<DeployReport> {
   const check = await checkSubdomain(rawLabel);
-  if (!check.available) {
-    throw new ApiError(check.reason ?? "That subdomain is already taken.", 409, "label_taken");
+  const projectName = `base31-${check.label}`;
+  // A project keeps one address. If the host is already attached to this
+  // label's own project, this is a redeploy to the same URL, not a conflict.
+  const redeploy = !check.available;
+  if (redeploy) {
+    const owned = await vercel(
+      `/v9/projects/${encodeURIComponent(projectName)}/domains/${encodeURIComponent(check.host)}`,
+    );
+    if (!owned.ok) {
+      throw new ApiError(check.reason ?? "That subdomain is already taken.", 409, "label_taken");
+    }
   }
   if (files.length === 0) {
     throw new ApiError("Build the site first — there are no files to deploy.", 400, "deploy_empty");
@@ -223,7 +232,6 @@ export async function deployProject(
   }
 
   const framework = detectFramework(files);
-  const projectName = `base31-${check.label}`;
 
   const created = await vercel("/v13/deployments", {
     method: "POST",
@@ -254,23 +262,35 @@ export async function deployProject(
   }
 
   let warning: string | undefined;
-  const domain = await vercel(`/v10/projects/${encodeURIComponent(projectName)}/domains`, {
-    method: "POST",
-    body: JSON.stringify({ name: check.host }),
-  });
+  // A redeploy already owns the domain, so attaching it again would 409 and
+  // look like a conflict. Only a first publish attaches the address.
+  if (!redeploy) {
+    const domain = await vercel(`/v10/projects/${encodeURIComponent(projectName)}/domains`, {
+      method: "POST",
+      body: JSON.stringify({ name: check.host }),
+    });
 
-  if (!domain.ok) {
-    if (domain.status === 409) {
-      throw new ApiError("That subdomain was claimed while deploying. Try another.", 409, "label_taken");
-    }
-    const message = await errorMessage(domain, "Could not attach the domain.");
-    if (!/already|exists/i.test(message)) {
-      warning = `Deployment created, but the domain was not attached: ${message}`;
-    }
-  } else {
-    const attached = (await domain.json()) as { verified?: boolean };
-    if (attached.verified === false) {
-      warning = `The domain was attached but still needs verification in Vercel for ${check.host}.`;
+    if (!domain.ok) {
+      if (domain.status === 409) {
+        // The domain list is paginated, so an existing project of ours can look
+        // free. Re-check ownership before treating this as someone else's URL.
+        const owned = await vercel(
+          `/v9/projects/${encodeURIComponent(projectName)}/domains/${encodeURIComponent(check.host)}`,
+        );
+        if (!owned.ok) {
+          throw new ApiError("That subdomain was claimed while deploying. Try another.", 409, "label_taken");
+        }
+      } else {
+        const message = await errorMessage(domain, "Could not attach the domain.");
+        if (!/already|exists/i.test(message)) {
+          warning = `Deployment created, but the domain was not attached: ${message}`;
+        }
+      }
+    } else {
+      const attached = (await domain.json()) as { verified?: boolean };
+      if (attached.verified === false) {
+        warning = `The domain was attached but still needs verification in Vercel for ${check.host}.`;
+      }
     }
   }
 
