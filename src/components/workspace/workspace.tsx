@@ -177,17 +177,6 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={toggleTheme}
-            aria-label="Toggle light mode"
-            title="Toggle light mode"
-            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
-          >
-            <Sun className="theme-sun h-4 w-4" />
-            <Moon className="theme-moon h-4 w-4" />
-          </button>
-          <PuterAccount onNotify={workspace.setToast} className="hidden md:inline-flex" />
-          <button
-            type="button"
             onClick={() => setPanelVisible((value) => !value)}
             aria-pressed={panelVisible}
             aria-label={panelVisible ? "Hide preview" : "Show preview"}
@@ -196,52 +185,12 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           >
             {panelVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
           </button>
-          <button
-            type="button"
-            onClick={openGit}
-            aria-label="GitHub repositories"
-            title="GitHub repositories"
-            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
-          >
-            <GitBranch className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={openIntegrations}
-            aria-label="Connectors"
-            title="Connectors"
-            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
-          >
-            <Plug className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={openSetup}
-            aria-label="Setup"
-            title="Setup"
-            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
-          >
-            <Settings2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              workspace.newProject();
-              setMobileView("chat");
-            }}
-            aria-label="New project"
-            title="New project"
-            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-ember px-0 text-[12px] font-semibold text-paper transition-colors hover:bg-ember-bright sm:w-auto sm:px-3"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">new</span>
-          </button>
 
-          <div className="relative md:hidden">
+          <div className="relative">
             <button
               type="button"
               onClick={() => setActionsOpen((value) => !value)}
-              aria-label="More tools"
+              aria-label="Tools and settings"
               aria-expanded={actionsOpen}
               className="grid h-9 w-9 place-items-center rounded-xl border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
             >
@@ -256,15 +205,6 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                   className="fixed inset-0 z-40 cursor-default bg-transparent"
                 />
                 <div className="absolute right-0 top-11 z-50 w-56 border border-line bg-paper p-1 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.6)]">
-                  <button
-                    type="button"
-                    onClick={toggleTheme}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
-                  >
-                    <Sun className="theme-sun h-3.5 w-3.5" />
-                    <Moon className="theme-moon h-3.5 w-3.5" />
-                    light / dark
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -295,13 +235,36 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
                   >
                     <Settings2 className="h-3.5 w-3.5" /> setup
                   </button>
-                  <div className="mt-1 border-t border-line px-1 pt-2">
-                    <PuterAccount onNotify={workspace.setToast} className="w-full justify-center" />
+                  <div className="mt-1 border-t border-line pt-1">
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                    >
+                      <Sun className="theme-sun h-3.5 w-3.5" />
+                      <Moon className="theme-moon h-3.5 w-3.5" />
+                      light / dark
+                    </button>
+                    <PuterAccount onNotify={workspace.setToast} className="w-full justify-center px-2 py-1.5" />
                   </div>
                 </div>
               </>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              workspace.newProject();
+              setMobileView("chat");
+            }}
+            aria-label="New project"
+            title="New project"
+            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 rounded-xl border border-transparent bg-ember px-0 text-[12px] font-semibold text-paper transition-colors hover:bg-ember-bright sm:w-auto sm:px-3"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">new</span>
+          </button>
         </div>
       </header>
 
@@ -364,7 +327,9 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             className={cn(
               "min-h-0 w-full border-line lg:w-[var(--panel-width)] lg:flex-none lg:border-l",
               mobileView === "site" ? "block" : "hidden",
-              !panelVisible && "lg:hidden",
+              // The mobile view switch does not exist on desktop, so the panel
+              // follows its own toggle there instead of staying hidden.
+              panelVisible ? "lg:block" : "lg:hidden",
             )}
           >
             <PreviewPanel
@@ -487,6 +452,10 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
         open={deployOpen}
         onClose={() => setDeployOpen(false)}
         project={active}
+        deployed={active?.deploy ?? null}
+        onDeployed={(deploy) => {
+          if (active) workspace.recordDeploy(active.id, deploy);
+        }}
         onOpenSetup={openSetup}
         onToast={workspace.setToast}
       />

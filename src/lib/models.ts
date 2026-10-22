@@ -39,6 +39,7 @@ export type Capabilities = {
   tavily: boolean;
   daytona: boolean;
   composio: boolean;
+  vercel: boolean;
   puter: boolean;
 };
 
@@ -49,6 +50,7 @@ export function readCapabilities(): Capabilities {
     tavily: Boolean(apiKey("tavily")),
     daytona: Boolean(apiKey("daytona")),
     composio: Boolean(apiKey("composio")),
+    vercel: Boolean(apiKey("vercel")),
     puter: true,
   };
 }

@@ -86,6 +86,17 @@ export function PreviewPanel({
               <RefreshCw className={cn("h-3.5 w-3.5", syncFiles && "animate-spin")} />
             </button>
           )}
+          {project?.deploy && (
+            <a
+              href={project.deploy.url}
+              target="_blank"
+              rel="noreferrer"
+              title={`${project.deploy.state} · ${project.deploy.host}`}
+              className="inline-flex min-h-8 shrink-0 items-center gap-1 px-1 text-[11px] text-ember transition-colors hover:underline"
+            >
+              live ↗
+            </a>
+          )}
           <button
             type="button"
             onClick={onDeploy}

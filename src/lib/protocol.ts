@@ -114,6 +114,16 @@ export type Project = {
   runCommand?: string | null;
   /** Short label for how the preview is being served: static, vite dev, node. */
   runtime?: string | null;
+  /** Last publish to the public domain. Survives reloads; preview URLs do not. */
+  deploy?: DeployRecord | null;
+};
+
+export type DeployRecord = {
+  host: string;
+  url: string;
+  /** Vercel build state, e.g. READY or QUEUED. */
+  state: string;
+  at: number;
 };
 
 const TAG =
@@ -307,6 +317,49 @@ export function currentActivity(raw: string): string {
   if (/<ask>(?:(?!<\/ask>)[\s\S])*$/i.test(raw)) return "writing a question";
   if (/<file\b/i.test(raw)) return "writing files";
   return "thinking";
+}
+
+export type StreamStep = { label: string; state: "done" | "now" };
+
+const STEP_TAG =
+  /<\s*(file|edit|shell|test|search|run|delete|connect|action)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
+
+function shortLine(value: string, max = 44): string {
+  const line = value.replace(/\s+/g, " ").trim();
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}
+
+/**
+ * The steps this response has already taken, plus the one in flight. Used by the
+ * live status line so the build narrates real work instead of a static spinner.
+ */
+export function streamSteps(raw: string): StreamStep[] {
+  const steps: StreamStep[] = [];
+  for (const match of raw.matchAll(STEP_TAG)) {
+    const tag = match[1].toLowerCase();
+    const attrs = match[2] ?? "";
+    const body = match[3] ?? "";
+    const path = sanitizePath(attr(attrs, "path"));
+    if ((tag === "file" || tag === "edit" || tag === "delete") && !path) continue;
+    if (tag === "file") steps.push({ label: `wrote ${path}`, state: "done" });
+    else if (tag === "edit") steps.push({ label: `edited ${path}`, state: "done" });
+    else if (tag === "delete") steps.push({ label: `deleted ${path}`, state: "done" });
+    else if (tag === "shell" || tag === "test") steps.push({ label: `ran ${shortLine(body)}`, state: "done" });
+    else if (tag === "run") steps.push({ label: `started ${shortLine(body)}`, state: "done" });
+    else if (tag === "search") steps.push({ label: `searched “${shortLine(body, 40)}”`, state: "done" });
+    else if (tag === "connect" && attr(attrs, "toolkit")) {
+      steps.push({ label: `connected ${attr(attrs, "toolkit")}`, state: "done" });
+    }
+  }
+
+  // Only claim something is in flight when a block is genuinely still open.
+  const open = /<\s*(file|edit|shell|test|search|run|think|ask)\b[^>]*>(?:(?!<\s*\/\s*\1\s*>)[\s\S])*$/i.test(raw);
+  const now = open ? currentActivity(raw) : "";
+  const recent = steps.slice(-8);
+  const unique = recent.filter(
+    (step, index) => recent.findIndex((item) => item.label === step.label) === index,
+  );
+  return now ? [...unique, { label: now, state: "now" }] : unique;
 }
 
 export function filePathsFromRaw(raw: string): string[] {

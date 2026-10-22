@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Check, Globe, KeyRound, Loader2, Rocket, X } from "lucide-react";
-import type { Project } from "@/lib/protocol";
+import type { DeployRecord, Project } from "@/lib/protocol";
 import { cn } from "@/lib/utils";
 import { Sheet } from "./sheets";
 
@@ -24,12 +24,16 @@ export function DeploySheet({
   open,
   onClose,
   project,
+  deployed,
+  onDeployed,
   onOpenSetup,
   onToast,
 }: {
   open: boolean;
   onClose: () => void;
   project: Project | null;
+  deployed: DeployRecord | null;
+  onDeployed: (deploy: DeployRecord) => void;
   onOpenSetup: () => void;
   onToast: (message: string | null) => void;
 }) {
@@ -40,6 +44,12 @@ export function DeploySheet({
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsKey, setNeedsKey] = useState(false);
+  // Read through a ref so a fresh deploy does not retrigger the form reset below.
+  const deployedRef = useRef<DeployRecord | null>(deployed);
+
+  useEffect(() => {
+    deployedRef.current = deployed;
+  }, [deployed]);
 
   useEffect(() => {
     if (!open) return;
@@ -49,8 +59,9 @@ export function DeploySheet({
       .replace(/^-|-$/g, "")
       .slice(0, 40);
     // Reset the form for each open; the sheet stays mounted otherwise.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLabel(slug);
+    // A deployed project reopens on its live address instead of the title.
+    const host = deployedRef.current?.host ?? "";
+    setLabel(host.replace(new RegExp(`\\.${DOMAIN.replace(/\./g, "\\.")}$`), "") || slug);
     setCheck(null);
     setReport(null);
     setError(null);
@@ -99,6 +110,7 @@ export function DeploySheet({
         throw new Error(data.error ?? "Deploy failed.");
       }
       setReport(data);
+      onDeployed({ host: data.host, url: data.url, state: data.state, at: Date.now() });
       onToast(
         data.ok ? `Live at ${data.host}` : `Deploying to ${data.host} — Vercel is building`,
       );
@@ -132,6 +144,23 @@ export function DeploySheet({
         </div>
       ) : (
         <>
+          {deployed && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-ember/30 bg-ember/10 px-2.5 py-2 font-mono text-[11.5px]">
+              <Check className="h-3 w-3 shrink-0 text-ember" />
+              <a
+                href={deployed.url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 truncate text-ember hover:underline"
+              >
+                {deployed.host}
+              </a>
+              <span className="ml-auto shrink-0 text-[10.5px] uppercase tracking-wider text-ink-faint">
+                {deployed.state.toLowerCase()}
+              </span>
+            </div>
+          )}
+
           <p className="font-mono text-[11.5px] leading-relaxed text-ink-faint">
             {files > 0
               ? `${files} file${files === 1 ? "" : "s"} from this project. Vercel builds frameworks from source.`

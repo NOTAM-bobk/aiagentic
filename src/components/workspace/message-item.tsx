@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChevronRight, GitBranch, Loader2, LogIn } from "lucide-react";
 import type { ChatMessage, Question, ToolEvent } from "@/lib/protocol";
-import { currentActivity, streamPreview, streamThink } from "@/lib/protocol";
+import { streamPreview, streamSteps, streamThink } from "@/lib/protocol";
 import { cn } from "@/lib/utils";
 import { getUserId } from "@/hooks/use-workspace";
 import { readSessionId } from "@/lib/composio-session-client";
@@ -208,6 +208,44 @@ function ThinkingBlock({ text, live }: { text: string; live: boolean }) {
       )}
     </div>
   );
+}
+
+const PHASE_HINTS: [RegExp, string[]][] = [
+  [/install|dependenc/, ["installing packages", "linking dependencies", "warming the module cache"]],
+  [/bundl|build/, ["bundling modules", "resolving imports", "assembling the output"]],
+  [/preview|runtime|sandbox|start/, ["starting the runtime", "binding the dev server", "waiting for the first paint"]],
+  [/refin|polish|fix/, ["reading the result", "tightening the layout", "polishing the details"]],
+];
+
+function phaseHints(phase: string): string[] {
+  const match = PHASE_HINTS.find(([pattern]) => pattern.test(phase.toLowerCase()));
+  return match?.[1] ?? ["reading your request", "sketching the structure", "writing the files"];
+}
+
+/** Cycles a status line so a long build keeps saying something. */
+function RotatingLine({ lines }: { lines: string[] }) {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (lines.length < 2) return;
+    const timer = window.setInterval(() => setTick((value) => value + 1), 3200);
+    return () => window.clearInterval(timer);
+  }, [lines.length]);
+
+  return <>{lines[tick % lines.length]}</>;
+}
+
+/** Whole seconds since the assistant message started. */
+function useElapsed(since: number, active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+
+  return active ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
 }
 
 function QuestionCard({
@@ -433,7 +471,15 @@ export function MessageItem({
   const streaming = Boolean(message.pending);
   const rawThink = message.raw ? streamThink(message.raw) : "";
   const thinking = streaming ? rawThink || message.thinking || "" : message.thinking || "";
-  const activity = message.raw ? currentActivity(message.raw) : "";
+  const elapsed = useElapsed(message.createdAt, streaming);
+
+  // Real steps from the response, newest first. Nothing invented is shown while
+  // the model is still working; the hints only fill a silent gap.
+  const steps = streaming && message.raw ? streamSteps(message.raw) : [];
+  const done = steps.filter((step) => step.state === "done").reverse();
+  const current = steps.find((step) => step.state === "now");
+  const pool = current ? [current.label, ...done.map((step) => step.label)] : done.map((step) => step.label);
+  const statusLines = pool.length > 0 ? pool.slice(0, 5) : phaseHints(phase);
 
   if (message.role === "user") {
     return (
@@ -470,11 +516,30 @@ export function MessageItem({
       {streaming && (
         <div className="flex items-start gap-2.5 font-mono text-[12px] leading-relaxed">
           <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-ember" />
-          <div className="min-w-0">
-            <p className="text-ink-soft">
-              {phase || "Working"}
-              {activity && <span className="text-ink-faint"> · {activity}</span>}
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-faint">
+                {phase || "Working"}
+              </span>
+              <span className="min-w-0 text-ink-soft">
+                <RotatingLine lines={statusLines} />
+              </span>
+              {elapsed > 2 && (
+                <span className="ml-auto shrink-0 pl-3 tabular-nums text-[11px] text-ink-faint">
+                  {elapsed}s
+                </span>
+              )}
             </p>
+            {done.length > 0 && (
+              <ul className="mt-1.5 space-y-0.5 text-[11.5px] leading-relaxed text-ink-faint">
+                {done.slice(0, 4).map((step, index) => (
+                  <li key={`${step.label}-${index}`} className="flex min-w-0 gap-1.5">
+                    <span className="shrink-0 text-ember">✓</span>
+                    <span className="min-w-0 truncate">{step.label}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {preview && (
               <p className="caret mt-1.5 whitespace-pre-wrap text-[14px] leading-[1.7] text-ink-soft">
                 {preview}

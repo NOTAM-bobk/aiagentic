@@ -8,6 +8,7 @@ import {
   parseArtifacts,
   streamPreview,
   type ChatMessage,
+  type DeployRecord,
   type Plan,
   type Project,
   type ProjectFile,
@@ -509,6 +510,12 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       const id = activeIdRef.current;
       if (id) patchProject(id, { puterModel });
     },
+    [patchProject],
+  );
+
+  /** Remember where a project was published so the deploy sheet can reopen on it. */
+  const recordDeploy = useCallback(
+    (id: string, deploy: DeployRecord) => patchProject(id, { deploy }),
     [patchProject],
   );
 
@@ -1721,6 +1728,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setBuilder,
     setMode,
     setPuterModel,
+    recordDeploy,
     noteConnection,
     pushToGitHub,
     importRepo,
