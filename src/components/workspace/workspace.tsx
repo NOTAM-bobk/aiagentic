@@ -8,6 +8,10 @@ import {
   Menu,
   MessageSquare,
   Monitor,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Plug,
   Plus,
   Settings2,
@@ -16,6 +20,7 @@ import {
 } from "lucide-react";
 import { KilnMark } from "@/components/brand";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { needsCloud } from "@/lib/protocol";
 import { bundleHtml, cn } from "@/lib/utils";
 import { ChatPanel } from "./chat-panel";
 import { PuterAccount } from "./puter-account";
@@ -27,6 +32,8 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [tab, setTab] = useState<PanelTab>("preview");
   const [mobileView, setMobileView] = useState<"chat" | "site">("chat");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [panelVisible, setPanelVisible] = useState(true);
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +65,9 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
     setSetupOpen(false);
   }, []);
 
-  const cloud = active?.mode === "cloud";
+  const cloud =
+    active?.mode === "cloud" ||
+    (active?.mode === "auto" && needsCloud(active?.files ?? [], active?.runCommand));
   const status = cloud ? (active?.previewUrl ? "live" : "cloud") : "browser";
   const busyPhase = workspace.busy ? workspace.phase || "working" : null;
 
@@ -78,6 +87,17 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           <KilnMark className="h-4 w-4 text-ember" />
           <span className="text-[13px] tracking-tight text-ink">kiln</span>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setSidebarVisible((value) => !value)}
+          aria-pressed={sidebarVisible}
+          aria-label={sidebarVisible ? "Hide projects" : "Show projects"}
+          title={sidebarVisible ? "Hide projects" : "Show projects"}
+          className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:grid"
+        >
+          {sidebarVisible ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+        </button>
 
         <label htmlFor="project-title" className="sr-only">
           Project name
@@ -108,6 +128,16 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
         <div className="ml-auto flex items-center gap-2">
           <PuterAccount onNotify={workspace.setToast} />
+          <button
+            type="button"
+            onClick={() => setPanelVisible((value) => !value)}
+            aria-pressed={panelVisible}
+            aria-label={panelVisible ? "Hide preview" : "Show preview"}
+            title={panelVisible ? "Hide preview" : "Show preview"}
+            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink lg:grid"
+          >
+            {panelVisible ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+          </button>
           <button
             type="button"
             onClick={openIntegrations}
@@ -141,17 +171,26 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-[248px] shrink-0 flex-col border-r border-line bg-night/50 lg:flex">
-          <ProjectList
-            projects={projects}
-            activeId={active?.id ?? null}
-            onSelect={workspace.selectProject}
-            onDelete={workspace.deleteProject}
-            onNew={() => workspace.newProject()}
-          />
-        </aside>
+        {sidebarVisible && (
+          <aside className="hidden w-[248px] shrink-0 flex-col border-r border-line bg-night/50 lg:flex">
+            <ProjectList
+              projects={projects}
+              activeId={active?.id ?? null}
+              onSelect={workspace.selectProject}
+              onDelete={workspace.deleteProject}
+              onNew={() => workspace.newProject()}
+            />
+          </aside>
+        )}
 
-        <div className="flex min-w-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 flex-col lg:grid",
+            panelVisible
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]"
+              : "lg:grid-cols-1",
+          )}
+        >
           <div className={cn("min-h-0 flex-1 lg:block", mobileView === "chat" ? "block" : "hidden")}>
             <ChatPanel
               project={active}
@@ -168,8 +207,9 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
           <div
             className={cn(
-              "min-h-0 flex-1 border-line lg:block lg:border-l",
+              "min-h-0 flex-1 border-line lg:border-l",
               mobileView === "site" ? "block" : "hidden",
+              !panelVisible && "lg:hidden",
             )}
           >
             <PreviewPanel

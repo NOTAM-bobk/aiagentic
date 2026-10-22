@@ -18,6 +18,7 @@ export type Plan = {
 };
 
 export type FileArtifact = { kind: "file"; path: string; content: string };
+export type EditArtifact = { kind: "edit"; path: string; find: string; replace: string };
 export type SearchArtifact = { kind: "search"; query: string };
 export type ShellArtifact = { kind: "shell"; command: string };
 export type ConnectArtifact = { kind: "connect"; toolkit: string; note: string };
@@ -31,6 +32,7 @@ export type TitleArtifact = { kind: "title"; title: string };
 
 export type Artifact =
   | FileArtifact
+  | EditArtifact
   | SearchArtifact
   | ShellArtifact
   | ConnectArtifact
@@ -44,7 +46,7 @@ export type Artifact =
 
 export type ToolEvent = {
   id: string;
-  kind: "plan" | "search" | "write" | "shell" | "run" | "connect" | "delete" | "sandbox";
+  kind: "plan" | "search" | "write" | "edit" | "shell" | "run" | "connect" | "delete" | "sandbox";
   label: string;
   detail?: string;
   status: "pending" | "running" | "ok" | "error";
@@ -72,7 +74,16 @@ export type ChatMessage = {
 
 export type ProjectFile = { path: string; content: string };
 
-export type WorkspaceMode = "cloud" | "local";
+const RUNTIME_MANIFESTS = new Set(["package.json", "requirements.txt", "Cargo.toml", "go.mod", "Gemfile"]);
+
+/** Does this project need a real machine to install, build, or serve? */
+export function needsCloud(files: { path: string }[], runCommand?: string | null): boolean {
+  return Boolean(runCommand) || files.some((file) => RUNTIME_MANIFESTS.has(file.path));
+}
+
+export type WorkspaceMode = "auto" | "cloud" | "local";
+/** The mode actually used for a turn: auto resolves to one of these. */
+export type RuntimeMode = "cloud" | "local";
 
 export type Project = {
   id: string;
@@ -94,12 +105,29 @@ export type Project = {
 };
 
 const TAG =
-  /<\s*(file|say|search|shell|connect|action|delete|done|think|ask|run|title)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
+  /<\s*(file|edit|say|search|shell|connect|action|delete|done|think|ask|run|title)\b([^>]*)>([\s\S]*?)<\s*\/\s*\1\s*>/gi;
 
 function attr(attrs: string, name: string): string {
   // Accept single or double quotes: models occasionally switch.
   const match = new RegExp(`${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i").exec(attrs);
   return (match?.[2] ?? match?.[3] ?? "").trim();
+}
+
+function unfence(value: string): string {
+  return value
+    .replace(/^[ \t]*```[a-zA-Z]*[ \t]*\r?\n?/, "")
+    .replace(/\r?\n[ \t]*```[ \t]*$/, "")
+    .replace(/^\r?\n/, "")
+    .replace(/\s+$/, "");
+}
+
+/** First `<find>`/`<old>` style child block inside an edit. */
+function childBlock(body: string, names: string[]): string | null {
+  for (const name of names) {
+    const match = new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}>`, "i").exec(body);
+    if (match) return unfence(match[1]);
+  }
+  return null;
 }
 
 /**
@@ -108,9 +136,12 @@ function attr(attrs: string, name: string): string {
  */
 export function parseArtifacts(raw: string): Artifact[] {
   const artifacts: Artifact[] = [];
-  // Remove standalone fence lines that models wrap around whole responses, but
-  // keep fenced code that legitimately belongs inside a file's content.
-  const source = raw.replace(/^\s*```[a-zA-Z]*\s*$/gm, "");
+  // Strip one fence wrapped around the whole response, but keep fenced code
+  // that legitimately belongs inside files and find/replace blocks.
+  const source = raw
+    .trim()
+    .replace(/^```[a-zA-Z]*[ \t]*\r?\n/, "")
+    .replace(/\r?\n```[ \t]*$/, "");
 
   for (const match of source.matchAll(TAG)) {
     const tag = match[1].toLowerCase();
@@ -120,6 +151,13 @@ export function parseArtifacts(raw: string): Artifact[] {
     if (tag === "file") {
       const path = sanitizePath(attr(attrs, "path"));
       if (path) artifacts.push({ kind: "file", path, content: body.replace(/^\n/, "").replace(/\s+$/, "") + "\n" });
+    } else if (tag === "edit") {
+      const path = sanitizePath(attr(attrs, "path"));
+      const find = childBlock(body, ["find", "old"]);
+      const replace = childBlock(body, ["replace", "new"]);
+      if (path && find !== null && find.length > 0 && replace !== null) {
+        artifacts.push({ kind: "edit", path, find, replace });
+      }
     } else if (tag === "search") {
       const query = body.trim();
       if (query) artifacts.push({ kind: "search", query });
@@ -158,6 +196,42 @@ export function parseArtifacts(raw: string): Artifact[] {
   }
 
   return artifacts;
+}
+
+/**
+ * Apply one find/replace edit. Exact match first, then a whitespace-tolerant
+ * line match, because models re-indent snippets they quote.
+ * Returns null when the quoted text is not in the file.
+ */
+export function applyEdit(content: string, find: string, replace: string): string | null {
+  if (!find) return null;
+  const exact = content.indexOf(find);
+  if (exact !== -1) {
+    return content.slice(0, exact) + replace + content.slice(exact + find.length);
+  }
+
+  const target = find.split("\n").map((line) => line.trimEnd());
+  while (target.length > 0 && target[0].trim() === "") target.shift();
+  while (target.length > 0 && target[target.length - 1].trim() === "") target.pop();
+  if (target.length === 0) return null;
+
+  const lines = content.split("\n");
+  for (let start = 0; start + target.length <= lines.length; start += 1) {
+    let matched = true;
+    for (let offset = 0; offset < target.length; offset += 1) {
+      if (lines[start + offset].trim() !== target[offset].trim()) {
+        matched = false;
+        break;
+      }
+    }
+    if (!matched) continue;
+
+    const head = lines.slice(0, start).join("\n");
+    const tail = lines.slice(start + target.length).join("\n");
+    return [head, replace, tail].filter((part) => part !== "").join("\n");
+  }
+
+  return null;
 }
 
 export function sanitizePath(value: string): string {

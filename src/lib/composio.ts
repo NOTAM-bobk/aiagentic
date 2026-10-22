@@ -20,6 +20,8 @@ export type Toolkit = {
   connected: boolean;
   accountId?: string;
   status?: string;
+  /** Brand mark hosted by Composio, when the catalog provides one. */
+  logo?: string;
 };
 
 type Json = Record<string, unknown>;
@@ -127,13 +129,15 @@ export async function listToolkits(userId: string): Promise<Toolkit[]> {
     const slug = asString(item.slug) ?? asString(item.key);
     if (!slug || bySlug.has(slug)) continue;
     const connection = connectedMap.get(slug);
+    const meta = (item.meta ?? {}) as Json;
     bySlug.set(slug, {
       slug,
       name: asString(item.name) ?? slug,
-      blurb: asString(item.description) ?? asString(item.meta && (item.meta as Json).description),
+      blurb: asString(item.description) ?? asString(meta.description),
       connected: Boolean(connection),
       accountId: connection?.id,
       status: connection?.status,
+      logo: asString(item.logo) ?? asString(meta.logo) ?? asString(item.logo_url),
     });
   }
 

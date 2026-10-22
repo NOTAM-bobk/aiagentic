@@ -10,7 +10,7 @@ import {
   RefreshCw,
   Smartphone,
 } from "lucide-react";
-import type { Project } from "@/lib/protocol";
+import { needsCloud, type Project } from "@/lib/protocol";
 import { bundleHtml, cn } from "@/lib/utils";
 
 export type PanelTab = "preview" | "files" | "activity";
@@ -65,7 +65,7 @@ export function PreviewPanel({
         </div>
 
         <div className="flex items-center gap-1">
-          {tab === "files" && project?.mode === "cloud" && (
+          {tab === "files" && project?.sandboxId && (
             <button
               type="button"
               onClick={onRefreshFiles}
@@ -109,32 +109,36 @@ function PreviewTab({
   const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const [nonce, setNonce] = useState(0);
 
+  const cloud =
+    project?.mode === "cloud" ||
+    (project?.mode === "auto" && needsCloud(project?.files ?? [], project?.runCommand));
+
   const html = useMemo(() => {
-    if (!project || project.mode !== "local") return "";
+    if (!project || cloud) return "";
     return bundleHtml(project.files);
-  }, [project]);
+  }, [project, cloud]);
 
-  const cloudUrl = project?.mode === "cloud" ? project.previewUrl ?? null : null;
+  const cloudUrl = cloud ? project?.previewUrl ?? null : null;
   const hasFiles = (project?.files.length ?? 0) > 0;
-
-  if (project && project.mode === "local" && project.files.some((file) => file.path === "package.json")) {
-    return (
-      <EmptyPanel
-        title="needs a runtime"
-        lines={["app projects install and build in cloud mode.", "switch the prompt bar to cloud to run it."]}
-      />
-    );
-  }
 
   if (!project || !hasFiles) {
     return <EmptyPanel title="no site yet" lines={["it renders here after the first build."]} />;
   }
 
-  if (project.mode === "cloud" && !cloudUrl) {
+  if (!cloud && project.files.some((file) => file.path === "package.json")) {
+    return (
+      <EmptyPanel
+        title="needs a runtime"
+        lines={["app projects install and build on a cloud machine.", "switch the prompt bar to auto or cloud to run it."]}
+      />
+    );
+  }
+
+  if (cloud && !cloudUrl) {
     return (
       <EmptyPanel
         title="not running"
-        lines={["start the server to get a signed url."]}
+        lines={["the machine is parked to save usage.", "starting wakes it with your files intact."]}
         action={
           <button
             type="button"
@@ -187,7 +191,7 @@ function PreviewTab({
             aria-label="Reload preview"
             onClick={() => {
               setNonce((value) => value + 1);
-              if (project.mode === "cloud") onRefresh();
+              if (cloud) onRefresh();
             }}
             className="p-1.5 text-ink-faint transition-colors hover:text-ink"
           >

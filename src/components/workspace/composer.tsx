@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cloud, Frame, Square } from "lucide-react";
+import { Cloud, Frame, Sparkles, Square } from "lucide-react";
 import type { Capabilities } from "@/lib/models";
 import type { WorkspaceMode } from "@/lib/protocol";
 import { PUTER_MODELS } from "@/lib/puter-models";
@@ -82,7 +82,7 @@ export function Composer({
               }}
               rows={1}
               spellCheck={false}
-              placeholder={mode === "cloud" ? "ask anything, or describe what to build…" : "ask anything…"}
+              placeholder="ask anything, or describe what to build…"
               className="max-h-[184px] min-h-[30px] w-full resize-none bg-transparent pb-3 font-mono text-[14px] leading-[1.7] text-ink placeholder:text-ink-faint focus:outline-none"
             />
           </div>
@@ -126,8 +126,26 @@ export function Composer({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                onClick={() => onMode("auto")}
+                title={
+                  capabilities?.daytona
+                    ? "Browser for static work, cloud only when a project needs a machine"
+                    : "Needs DAYTONA_API_KEY for cloud work"
+                }
+                className={cn(
+                  "inline-flex min-h-8 items-center gap-1.5 border px-2 py-1.5 transition-colors",
+                  mode === "auto"
+                    ? "border-ember/40 bg-ember/10 text-ember"
+                    : "border-line text-ink-faint hover:border-line-strong hover:text-ink",
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                auto
+              </button>
+              <button
+                type="button"
                 onClick={() => onMode("cloud")}
-                title={capabilities?.daytona ? "Run files in a Daytona sandbox" : "Needs DAYTONA_API_KEY"}
+                title={capabilities?.daytona ? "Always run files in a Daytona sandbox" : "Needs DAYTONA_API_KEY"}
                 className={cn(
                   "inline-flex min-h-8 items-center gap-1.5 border px-2 py-1.5 transition-colors",
                   mode === "cloud"

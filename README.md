@@ -34,7 +34,7 @@ app still runs, but builds happen in Browser mode with Puter.
 prompt
   └─ decide      Groq · openai/gpt-oss-120b        → answer, ask with options, or plan a build
   └─ plan        only when building               → concept, stack, art direction, files
-  └─ build       Gemini 3.8 Flash (or Puter)       → <think>, <say>, <file>, <shell>, <run>, <ask>
+  └─ build       Gemini 3.8 Flash (or Puter)       → <think>, <say>, <edit>, <file>, <shell>, <run>, <ask>
   └─ install     Daytona · npm/bun                 → dependencies for package.json projects
   └─ bundle      Daytona · npm run build           → dist/ served, or a dev server started
   └─ execute     Tavily · Daytona · Composio       → results fed into the next round
@@ -49,17 +49,28 @@ It only writes files when the request is actually a build, and the first turn na
 conversation. Without `GROQ_API_KEY` there is no separate decision step, and the builder model
 makes the same call itself.
 
-Two execution modes:
+Execution modes, chosen per turn:
 
+- **Auto** (default) — static work stays in the browser; anything with a manifest, a shell command,
+  or a server moves to the cloud for that turn. This is what keeps cloud usage down.
 - **Cloud** — files live in a Daytona sandbox, commands actually run, preview is a signed URL.
 - **Browser** — files live in `localStorage`, the page is previewed with inlined CSS/JS. No keys,
   no sandbox. Puter's browser models can plan and build here, so the app is usable with zero setup.
 
+A sandbox parks itself when the tab closes or a turn ends with nothing to preview, and Daytona's
+auto-stop catches the rest after ten idle minutes. Files survive; the next preview wakes it and
+re-mints the signed URL.
+
 The builder speaks a small XML protocol instead of native tool calling, so Gemini, Groq, and
-Puter models behave identically: `<think>` for visible reasoning, `<ask>` for a question with
-options, `<file>` for complete files, `<shell>` for one-off commands, `<run>` for a long-running
-server, and `<done>` for the closing summary. `src/lib/protocol.ts` parses it;
-`src/lib/prompts.ts` defines the planner, builder, and title prompts.
+Puter models behave identically: ` thinking` for visible reasoning, `<ask>` for a question with
+options, `<edit>` for a find/replace change to an existing file, `<file>` for a complete file,
+`<shell>` for one-off commands, `<run>` for a long-running server, and `<done>` for the closing
+summary. `src/lib/protocol.ts` parses it and applies edits (exact match, then a whitespace-tolerant
+line match); `src/lib/prompts.ts` defines the planner, builder, and title prompts.
+
+Follow-ups edit instead of rewriting: the model quotes the current lines it wants to change, so a
+one-line tweak costs a few tokens instead of a whole file. Full `<file>` blocks are reserved for
+new files or genuine rewrites.
 
 Project types are detected, not declared. A `package.json` gets its dependencies installed and
 its build script run before the preview starts; built output (`dist/`, `build/`, `out/`) is served
@@ -122,7 +133,8 @@ Notes:
 - Puter.js loads on the client and the header button signs you in once. Models and pricing are
   controlled by Puter's user-pays model; the builder is selected in the composer.
 - Composio connections need an auth config per toolkit. Create it in the Composio dashboard first,
-  then use **Connectors → Connect**. The OAuth callback returns to the workspace.
+  then use **Connectors → Connect**. The OAuth callback returns to the workspace. Connector tiles
+  use the real brand mark from Composio's logo service, with a monogram fallback.
 - Preview URLs from Daytona are signed and expire after six hours; press reload to mint a fresh one.
 - Browser mode can write React and server projects but cannot install, bundle, or run them; switch
 the prompt bar to cloud for those.

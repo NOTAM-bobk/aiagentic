@@ -9,6 +9,7 @@ import {
   installProject,
   readFiles,
   startPreview,
+  stopSandbox,
   writeFiles,
 } from "@/lib/daytona";
 import { sanitizePath } from "@/lib/protocol";
@@ -16,7 +17,17 @@ import { sanitizePath } from "@/lib/protocol";
 export const maxDuration = 60;
 
 type Body = {
-  action?: "create" | "write" | "read" | "exec" | "delete" | "preview" | "status" | "install" | "build";
+  action?:
+    | "create"
+    | "write"
+    | "read"
+    | "exec"
+    | "delete"
+    | "preview"
+    | "status"
+    | "install"
+    | "build"
+    | "stop";
   sandboxId?: string;
   files?: { path: string; content: string }[];
   path?: string;
@@ -85,6 +96,10 @@ export async function POST(request: Request) {
         const runCommand = (body.runCommand ?? "").trim().slice(0, 500) || undefined;
         const report = await startPreview(sandboxId, { runCommand });
         return NextResponse.json(report);
+      }
+      case "stop": {
+        await stopSandbox(sandboxId);
+        return NextResponse.json({ stopped: sandboxId });
       }
       case "status": {
         const files = await readFiles(sandboxId);

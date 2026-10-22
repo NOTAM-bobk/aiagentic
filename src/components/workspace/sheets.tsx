@@ -78,7 +78,35 @@ type Toolkit = {
   blurb?: string;
   connected: boolean;
   status?: string;
+  logo?: string;
 };
+
+function ToolkitLogo({ toolkit }: { toolkit: Toolkit }) {
+  const [failed, setFailed] = useState(false);
+  const source = toolkit.logo || `https://logos.composio.dev/api/${toolkit.slug}`;
+
+  if (failed) {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center border border-line bg-paper-2/60 font-mono text-[10px] uppercase text-ink-faint">
+        {toolkit.name.slice(0, 2)}
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center border border-line bg-paper-2/60 p-1.5">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={source}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        className="h-full w-full object-contain"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  );
+}
 
 export function IntegrationsSheet({
   open,
@@ -223,9 +251,7 @@ export function IntegrationsSheet({
             <ul className="divide-y divide-line border-y border-line">
               {toolkits.map((toolkit) => (
                 <li key={toolkit.slug} className="flex items-center gap-3 py-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-line bg-paper-2/60 font-mono text-[10px] uppercase text-ink-faint">
-                    {toolkit.name.slice(0, 2)}
-                  </span>
+                  <ToolkitLogo toolkit={toolkit} />
                   <div className="min-w-0 flex-1 font-mono">
                     <p className="flex items-center gap-1.5 text-[12.5px] text-ink">
                       {toolkit.name}

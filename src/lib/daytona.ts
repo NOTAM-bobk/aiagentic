@@ -120,7 +120,9 @@ export async function createSandbox(): Promise<{ sandboxId: string; previewUrl: 
       language: "typescript",
       labels: { app: "kiln" },
       public: false,
-      autoStopInterval: 60,
+      // Park the machine quickly once nobody is building; a stopped sandbox
+      // wakes up on the next request with its files intact.
+      autoStopInterval: 10,
       autoDeleteInterval: 1440,
     });
     await sandbox.fs.uploadFile(Buffer.from(SERVER_SCRIPT, "utf8"), "kiln-serve.mjs");
@@ -187,6 +189,18 @@ async function readPackage(sandbox: Sandbox): Promise<{ scripts: string[]; name:
     return { scripts: Object.keys(parsed.scripts ?? {}), name: parsed.name ?? "app" };
   } catch {
     return { scripts: [], name: "app" };
+  }
+}
+
+/** Park a sandbox. Files survive; the next request starts it again. */
+export async function stopSandbox(sandboxId: string): Promise<void> {
+  if (!hasDaytona() || !sandboxId) return;
+  try {
+    const daytona = client();
+    const sandbox = await daytona.get(sandboxId);
+    if (sandbox.state === "started") await daytona.stop(sandbox);
+  } catch {
+    // Already stopped, deleted, or unreachable: nothing to save.
   }
 }
 

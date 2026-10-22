@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BUILDER_PROMPT, TITLE_PROMPT, buildEditContext } from "@/lib/prompts";
 import {
+  applyEdit,
+  needsCloud,
   parseArtifacts,
   streamPreview,
   type ChatMessage,
   type Plan,
   type Project,
   type ProjectFile,
+  type RuntimeMode,
   type ToolEvent,
   type WorkspaceMode,
 } from "@/lib/protocol";
@@ -32,7 +35,7 @@ function createProject(overrides: Partial<Project> = {}): Project {
     messages: [],
     files: [],
     sandboxId: null,
-    mode: "local",
+    mode: "auto",
     builder: "puter",
     previewUrl: null,
     ...overrides,
@@ -52,6 +55,9 @@ function newMessage(role: ChatMessage["role"], content = "", extra: Partial<Chat
 function withoutRaw(projects: Project[]): Project[] {
   return projects.map((project) => ({
     ...project,
+    // Signed preview URLs die with the parked sandbox; mint a fresh one on demand.
+    previewUrl: null,
+    runtime: null,
     messages: project.messages.map((message) => ({
       ...message,
       raw: undefined,
@@ -68,6 +74,16 @@ function withoutRaw(projects: Project[]): Project[] {
       })),
     })),
   }));
+}
+
+function needsCloudRun(files: ProjectFile[], artifacts: ReturnType<typeof parseArtifacts>): boolean {
+  const commands = artifacts.some((artifact) => artifact.kind === "shell" || artifact.kind === "run");
+  return needsCloud(files) || commands;
+}
+
+function diffSnippet(find: string, replace: string): string {
+  const cut = (value: string) => value.split("\n").slice(0, 10).join("\n");
+  return `- ${cut(find)}\n+ ${cut(replace)}`;
 }
 
 function cleanTitle(value: string): string | null {
@@ -183,7 +199,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setCapabilities(next);
     setCapsLoaded(true);
     const builder = next.google ? "gemini" : next.groq ? "groq" : "puter";
-    const mode: WorkspaceMode = next.daytona ? "cloud" : "local";
+    const mode: WorkspaceMode = next.daytona ? "auto" : "local";
     setProjects((prev) =>
       prev.map((project) =>
         project.messages.length === 0
@@ -231,7 +247,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
   const newProject = useCallback(() => {
     const project = createProject({
-      mode: capabilities?.daytona ? "cloud" : "local",
+      mode: capabilities?.daytona ? "auto" : "local",
       builder: capabilities?.google ? "gemini" : capabilities?.groq ? "groq" : "puter",
     });
     setProjects((prev) => [project, ...prev]);
@@ -243,13 +259,44 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     setActiveId(id);
   }, []);
 
-  const deleteProject = useCallback((id: string) => {
-    setProjects((prev) => {
-      const next = prev.filter((project) => project.id !== id);
-      if (activeIdRef.current === id) setActiveId(next[0]?.id ?? null);
-      return next;
-    });
+  const parkSandbox = useCallback((id: string | null | undefined) => {
+    if (!id || typeof window === "undefined") return;
+    void fetch("/api/sandbox", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "stop", sandboxId: id }),
+      keepalive: true,
+    }).catch(() => undefined);
   }, []);
+
+  // Closing the tab parks every running machine instead of leaving it billing.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const parkAll = () => {
+      for (const project of projectsRef.current) {
+        if (!project.sandboxId) continue;
+        navigator.sendBeacon(
+          "/api/sandbox",
+          JSON.stringify({ action: "stop", sandboxId: project.sandboxId }),
+        );
+      }
+    };
+    window.addEventListener("pagehide", parkAll);
+    return () => window.removeEventListener("pagehide", parkAll);
+  }, []);
+
+  const deleteProject = useCallback(
+    (id: string) => {
+      const doomed = projectsRef.current.find((project) => project.id === id);
+      if (doomed?.sandboxId) parkSandbox(doomed.sandboxId);
+      setProjects((prev) => {
+        const next = prev.filter((project) => project.id !== id);
+        if (activeIdRef.current === id) setActiveId(next[0]?.id ?? null);
+        return next;
+      });
+    },
+    [parkSandbox],
+  );
 
   const renameProject = useCallback(
     (id: string, title: string) => patchProject(id, { title: title.trim() || "Untitled site" }),
@@ -290,14 +337,44 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
   const refreshPreview = useCallback(
     async (projectOverride?: Project) => {
       const project = projectOverride ?? projectsRef.current.find((item) => item.id === activeIdRef.current);
-      if (!project || project.mode !== "cloud" || !project.sandboxId) return null;
+      if (!project || project.mode === "local") return null;
       try {
+        let sandboxId = project.sandboxId ?? null;
+
+        // A parked machine wakes on demand; a deleted one is rebuilt from the files here.
+        if (!sandboxId) {
+          const created = await fetch("/api/sandbox", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "create" }),
+          });
+          if (!created.ok) throw new Error(await errorFromResponse(created));
+          const data = (await created.json()) as { sandboxId: string };
+          sandboxId = data.sandboxId;
+          patchProject(project.id, { sandboxId });
+          if (project.files.length > 0) {
+            await fetch("/api/sandbox", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ action: "write", sandboxId, files: project.files }),
+            });
+          }
+        }
+
+        if (project.files.some((file) => file.path === "package.json")) {
+          await fetch("/api/sandbox", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "install", sandboxId }),
+          });
+        }
+
         const response = await fetch("/api/sandbox", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             action: "preview",
-            sandboxId: project.sandboxId,
+            sandboxId,
             runCommand: project.runCommand ?? undefined,
           }),
         });
@@ -315,7 +392,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
   const refreshFiles = useCallback(async () => {
     const project = projectsRef.current.find((item) => item.id === activeIdRef.current);
-    if (!project || project.mode !== "cloud" || !project.sandboxId) return;
+    if (!project || project.mode === "local" || !project.sandboxId) return;
     try {
       const response = await fetch("/api/sandbox", {
         method: "POST",
@@ -433,7 +510,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
       let files: ProjectFile[] = project.files;
       let sandboxId = project.sandboxId ?? null;
-      let mode: WorkspaceMode = project.mode;
+      const preference: WorkspaceMode = project.mode;
+      let mode: RuntimeMode = preference === "auto" ? "local" : preference;
       let previewUrl = project.previewUrl ?? null;
       let runCommand = project.runCommand ?? null;
       const builder = project.builder;
@@ -739,6 +817,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
           const artifacts = parseArtifacts(raw);
           const fileArtifacts = artifacts.filter((artifact) => artifact.kind === "file");
+          const editArtifacts = artifacts.filter((artifact) => artifact.kind === "edit");
           const doneArtifact = artifacts.find((artifact) => artifact.kind === "done");
 
           const thoughts = artifacts
@@ -761,8 +840,8 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
 
           const askArtifact = artifacts.find((artifact) => artifact.kind === "ask");
 
-          // A question back is a valid turn: no files, one clear ask.
-          if (askArtifact && askArtifact.kind === "ask" && fileArtifacts.length === 0) {
+          // A question back is a valid turn: no files, no edits, one clear ask.
+          if (askArtifact && askArtifact.kind === "ask" && fileArtifacts.length === 0 && editArtifacts.length === 0) {
             const said = streamPreview(raw);
             resolveTool(writeTool, { status: "ok", label: "Asked a question" });
             summaryText = said || askArtifact.question;
@@ -776,7 +855,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           }
 
           // A reply in words is a valid turn: an answer, or feedback.
-          if (fileArtifacts.length === 0) {
+          if (fileArtifacts.length === 0 && editArtifacts.length === 0) {
             const said = streamPreview(raw) || (doneArtifact?.kind === "done" ? doneArtifact.summary : "");
             if (!said) {
               resolveTool(writeTool, { status: "error", output: "empty response" });
@@ -789,24 +868,103 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           }
 
           /* 3 — apply artifacts ---------------------------------------- */
-          const incoming: ProjectFile[] = fileArtifacts.map((artifact) =>
-            artifact.kind === "file" ? { path: artifact.path, content: artifact.content } : { path: "", content: "" },
-          );
+          // Edits change only the quoted span of a file that already exists.
+          const edited = new Map<string, string>();
+          for (const artifact of editArtifacts) {
+            if (artifact.kind !== "edit") continue;
+            const toolId = pushTool({ kind: "edit", label: artifact.path, detail: "edit" });
+
+            if (fileArtifacts.some((file) => file.kind === "file" && file.path === artifact.path)) {
+              resolveTool(toolId, {
+                status: "ok",
+                label: `${artifact.path} · rewritten in full`,
+                output: "A <file> block for this path takes precedence.",
+              });
+              continue;
+            }
+
+            const base =
+              edited.get(artifact.path) ?? files.find((file) => file.path === artifact.path)?.content;
+            if (base === undefined) {
+              resolveTool(toolId, {
+                status: "error",
+                output: `${artifact.path} is not in the workspace. Create it with <file>.`,
+              });
+              observations.push(
+                `Edit skipped: ${artifact.path} does not exist yet. Create it with <file> if it is needed.`,
+              );
+              continue;
+            }
+
+            const next = applyEdit(base, artifact.find, artifact.replace);
+            if (next === null) {
+              resolveTool(toolId, {
+                status: "error",
+                output: "The <find> text was not found in the file.",
+              });
+              observations.push(
+                `Edit failed in ${artifact.path}: the <find> text was not found. Copy the exact current lines, or write the file with <file>.`,
+              );
+              continue;
+            }
+
+            edited.set(artifact.path, next);
+            resolveTool(toolId, {
+              status: "ok",
+              label: `${artifact.path} · edited`,
+              output: diffSnippet(artifact.find, artifact.replace),
+            });
+          }
+
+          const incoming: ProjectFile[] = [
+            ...fileArtifacts.map((artifact) =>
+              artifact.kind === "file"
+                ? { path: artifact.path, content: artifact.content }
+                : { path: "", content: "" },
+            ),
+            ...[...edited].map(([path, content]) => ({ path, content })),
+          ];
           const wrote = `Wrote ${incoming.length} file${incoming.length === 1 ? "" : "s"}`;
 
+          // Auto: a static page stays in the browser, anything runnable goes to the cloud.
+          if (preference === "auto") {
+            const merged = [
+              ...files.filter((file) => !incoming.some((next) => next.path === file.path)),
+              ...incoming,
+            ];
+            mode = needsCloudRun(merged, artifacts) ? "cloud" : "local";
+          }
+
+          if (incoming.length === 0) {
+            resolveTool(writeTool, { status: "error", output: "No changes were produced." });
+            if (round < MAX_ROUNDS) continue;
+            break;
+          }
+
           if (mode === "cloud") {
+            const hadSandbox = Boolean(sandboxId);
             const id = await ensureSandbox();
             if (id) {
+              // A fresh or previously browser-only turn leaves the machine behind:
+              // hand it the whole project, not just this round's files.
+              const payload =
+                hadSandbox && preference !== "auto"
+                  ? incoming
+                  : [...new Map([...files, ...incoming].map((file) => [file.path, file])).values()];
               try {
                 const response = await fetch("/api/sandbox", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ action: "write", sandboxId: id, files: incoming }),
+                  body: JSON.stringify({ action: "write", sandboxId: id, files: payload }),
                   signal: controller.signal,
                 });
                 if (!response.ok) throw new Error(await errorFromResponse(response));
                 mergeFiles(incoming);
-                resolveTool(writeTool, { status: "ok", label: wrote, output: "saved to /site" });
+                resolveTool(writeTool, {
+                  status: "ok",
+                  label: `Wrote ${payload.length} file${payload.length === 1 ? "" : "s"}`,
+                  output: hadSandbox ? "saved to /site" : "copied the project to a new machine",
+                });
               } catch (error) {
                 resolveTool(writeTool, {
                   status: "error",
@@ -816,7 +974,6 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
               }
             } else {
               mode = "local";
-              patchProject(projectId, { mode });
               mergeFiles(incoming);
               resolveTool(writeTool, { status: "ok", label: wrote });
               observations.push("Daytona was unavailable, so files were saved in the browser workspace instead.");
@@ -966,8 +1123,13 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
           raw: undefined,
           content: summaryText || "Done. The site is in your workspace.",
         });
-        patchProject(projectId, { previewUrl, sandboxId, mode, builder, title, runCommand });
+        patchProject(projectId, { previewUrl, sandboxId, mode: preference, builder, title, runCommand });
         void nameChat(projectId, prompt, summaryText, project.messages.length <= 1, builder);
+
+        // Nothing to look at: park the machine now rather than keep it warm.
+        if (preference === "auto" && mode === "cloud" && !previewUrl && sandboxId) {
+          parkSandbox(sandboxId);
+        }
       } catch (error) {
         if (controller.signal.aborted) {
           patchMessage(projectId, assistant.id, { pending: false, content: "Stopped." });
@@ -982,7 +1144,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
         setPhase("");
       }
     },
-    [nameChat, patchMessage, patchProject],
+    [nameChat, parkSandbox, patchMessage, patchProject],
   );
 
   const send = useCallback(
@@ -993,7 +1155,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
       let project = projectsRef.current.find((item) => item.id === activeIdRef.current);
       if (!project) {
         project = createProject({
-          mode: capabilities?.daytona ? "cloud" : "local",
+          mode: capabilities?.daytona ? "auto" : "local",
           builder: capabilities?.google ? "gemini" : capabilities?.groq ? "groq" : "puter",
         });
         setProjects((prev) => [project as Project, ...prev]);
@@ -1020,7 +1182,7 @@ export function useWorkspace(options: { initialPrompt?: string } = {}) {
     const prompt = options.initialPrompt?.trim();
     if (!prompt) return;
     const project = createProject({
-      mode: capabilities?.daytona ? "cloud" : "local",
+      mode: capabilities?.daytona ? "auto" : "local",
       builder: capabilities?.google ? "gemini" : capabilities?.groq ? "groq" : "puter",
       title: slugTitle(prompt),
     });
