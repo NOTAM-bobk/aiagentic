@@ -7,6 +7,7 @@ import {
   Menu,
   MessageSquare,
   Monitor,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -37,6 +38,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [gitOpen, setGitOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncFiles, setSyncFiles] = useState(false);
   const [panelWidth, setPanelWidth] = useState(52);
@@ -119,6 +121,17 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
     setSetupOpen(false);
   }, []);
 
+  const toggleTheme = useCallback(() => {
+    const root = document.documentElement;
+    const next = root.dataset.theme === "light" ? "dark" : "light";
+    root.dataset.theme = next;
+    try {
+      window.localStorage.setItem("kiln.theme", next);
+    } catch {
+      // Storage disabled: the theme still applies for this page.
+    }
+  }, []);
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-paper font-mono text-ink">
       <header className="flex h-13 shrink-0 items-center gap-2 border-b border-line bg-paper-2/40 px-3 sm:gap-3 sm:px-4">
@@ -133,7 +146,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
 
         <div className="flex items-center gap-1.5">
           <KilnMark className="h-4 w-4 text-ember" />
-          <span className="text-[13px] tracking-tight text-ink">kiln</span>
+          <span className="hidden text-[13px] tracking-tight text-ink sm:inline">kiln</span>
         </div>
 
         <button
@@ -155,30 +168,21 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
           value={active?.title ?? "untitled"}
           onChange={(event) => active && workspace.renameProject(active.id, event.target.value)}
           spellCheck={false}
-          className="min-w-0 max-w-[30vw] flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-[13px] text-ink transition-colors hover:border-line focus:border-line-strong focus:outline-none sm:max-w-[240px]"
+          className="w-0 min-w-0 flex-1 border-b border-transparent bg-transparent px-1 py-0.5 text-[13px] text-ink transition-colors hover:border-line focus:border-line-strong focus:outline-none sm:max-w-[240px]"
         />
 
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={() => {
-              const root = document.documentElement;
-              const next = root.dataset.theme === "light" ? "dark" : "light";
-              root.dataset.theme = next;
-              try {
-                window.localStorage.setItem("kiln.theme", next);
-              } catch {
-                // Storage disabled: the theme still applies for this page.
-              }
-            }}
+            onClick={toggleTheme}
             aria-label="Toggle light mode"
             title="Toggle light mode"
-            className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
           >
             <Sun className="theme-sun h-4 w-4" />
             <Moon className="theme-moon h-4 w-4" />
           </button>
-          <PuterAccount onNotify={workspace.setToast} />
+          <PuterAccount onNotify={workspace.setToast} className="hidden md:inline-flex" />
           <button
             type="button"
             onClick={() => setPanelVisible((value) => !value)}
@@ -194,7 +198,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             onClick={openGit}
             aria-label="GitHub repositories"
             title="GitHub repositories"
-            className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
           >
             <GitBranch className="h-4 w-4" />
           </button>
@@ -212,7 +216,7 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
             onClick={openSetup}
             aria-label="Setup"
             title="Setup"
-            className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+            className="hidden h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink md:grid"
           >
             <Settings2 className="h-4 w-4" />
           </button>
@@ -222,11 +226,79 @@ export function Workspace({ initialPrompt }: { initialPrompt?: string }) {
               workspace.newProject();
               setMobileView("chat");
             }}
-            className="inline-flex min-h-9 items-center gap-1.5 border border-ember/40 bg-ember/10 px-3 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15"
+            aria-label="New project"
+            title="New project"
+            className="inline-flex h-9 w-9 items-center justify-center gap-1.5 border border-ember/40 bg-ember/10 px-0 text-[12px] text-ember transition-colors hover:border-ember hover:bg-ember/15 sm:w-auto sm:px-3"
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">new</span>
           </button>
+
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              onClick={() => setActionsOpen((value) => !value)}
+              aria-label="More tools"
+              aria-expanded={actionsOpen}
+              className="grid h-9 w-9 place-items-center border border-line text-ink-faint transition-colors hover:border-line-strong hover:text-ink"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+            {actionsOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setActionsOpen(false)}
+                  className="fixed inset-0 z-40 cursor-default bg-transparent"
+                />
+                <div className="absolute right-0 top-11 z-50 w-56 border border-line bg-paper p-1 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.6)]">
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                  >
+                    <Sun className="theme-sun h-3.5 w-3.5" />
+                    <Moon className="theme-moon h-3.5 w-3.5" />
+                    light / dark
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      openGit();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                  >
+                    <GitBranch className="h-3.5 w-3.5" /> GitHub repositories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      openIntegrations();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                  >
+                    <Plug className="h-3.5 w-3.5" /> connectors
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      openSetup();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-2.5 py-2.5 text-left text-[12px] text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" /> setup
+                  </button>
+                  <div className="mt-1 border-t border-line px-1 pt-2">
+                    <PuterAccount onNotify={workspace.setToast} className="w-full justify-center" />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
